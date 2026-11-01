@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,7 +27,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -129,7 +129,7 @@ fun FaqScreen(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFFF6F4EF))
+            .background(MaterialTheme.colorScheme.background)
     ) {
         LazyColumn(
             modifier = Modifier
@@ -142,7 +142,7 @@ fun FaqScreen(modifier: Modifier = Modifier) {
                     is FaqListItem.Header -> {
                         Text(
                             listItem.title,
-                            color = Color(0xFF3F7DF6),
+                            color = MaterialTheme.colorScheme.primary,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier.padding(start = 4.dp, top = 16.dp, bottom = 6.dp)
@@ -165,7 +165,7 @@ private fun FaqCard(item: FaqItem) {
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color(0xFFFFFEFB),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         shape = RoundedCornerShape(14.dp)
     ) {
         Column(
@@ -181,7 +181,7 @@ private fun FaqCard(item: FaqItem) {
             ) {
                 Text(
                     item.question,
-                    color = Color(0xFF141821),
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.weight(1f)
@@ -189,16 +189,16 @@ private fun FaqCard(item: FaqItem) {
                 Icon(
                     imageVector = Icons.Outlined.KeyboardArrowDown,
                     contentDescription = if (expanded) "收起" else "展开",
-                    tint = Color(0xFF9CA3AF),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.rotate(if (expanded) 180f else 0f)
                 )
             }
 
             if (expanded) {
-                HorizontalDivider(color = Color(0xFFEDE8DE))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Text(
                     item.answer,
-                    color = Color(0xFF667085),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 14.sp,
                     lineHeight = 22.sp,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)

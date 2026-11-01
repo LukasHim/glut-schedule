@@ -15,7 +15,7 @@ class CampusInfoUiContractTest {
         }
         assertTrue(screen.contains("PrimaryTabRow"))
         assertTrue(screen.contains("viewModel::selectType"))
-        assertTrue(screen.contains("Color(0xFFF6F4EF)"))
+        assertTrue(screen.contains("MaterialTheme.colorScheme.background"))
         assertTrue(screen.contains("ContentScale.Fit"))
         assertTrue(screen.contains("contentAlignment = Alignment.Center"))
         assertTrue(screen.contains("clipToBounds()"))

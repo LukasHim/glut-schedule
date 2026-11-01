@@ -72,6 +72,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -92,15 +93,12 @@ fun ScheduleScreen(
     viewModel: ScheduleViewModel,
     uiState: ScheduleUiState,
     customBackgroundBitmap: ImageBitmap?,
-    onPickBackground: () -> Unit,
-    onClearBackground: () -> Unit,
     onImportClick: () -> Unit,
     onExamClick: () -> Unit = {},
     onDrawerOpen: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
-    var showAddActions by remember { mutableStateOf(false) }
     /** 长按打开「卡片管理」的那一张卡。冲突组里传上来的是当前显示的那一门。 */
     var managedBlock by remember { mutableStateOf<CourseBlock?>(null) }
     /** 刷新变化明细弹层是否可见。 */
@@ -139,7 +137,8 @@ fun ScheduleScreen(
     val adjustmentDates = remember(uiState.manualDayCopies) {
         uiState.manualDayCopies.mapTo(mutableSetOf()) { it.targetDate }
     }
-    if (com.glut.schedule.ui.components.shouldUseCustomBackground(uiState.customBackgroundUri) &&
+    if (uiState.showBackground &&
+        com.glut.schedule.ui.components.shouldUseCustomBackground(uiState.customBackgroundUri) &&
         customBackgroundBitmap == null
     ) {
         // Activity 会继续保留系统启动窗口；这里绝不能绘制另一张内置画作，否则冷启动会闪切背景。
@@ -175,12 +174,18 @@ fun ScheduleScreen(
             }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
-        ScheduleBackgroundImage(
-            customBackgroundUri = uiState.customBackgroundUri,
-            customBackgroundBitmap = customBackgroundBitmap,
-            dimAmount = uiState.backgroundDimAmount
-        )
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(if (uiState.showBackground) Color.Transparent else MaterialTheme.colorScheme.background)
+    ) {
+        if (uiState.showBackground) {
+            ScheduleBackgroundImage(
+                customBackgroundUri = uiState.customBackgroundUri,
+                customBackgroundBitmap = customBackgroundBitmap,
+                dimAmount = uiState.backgroundDimAmount
+            )
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -216,7 +221,6 @@ fun ScheduleScreen(
                     }
                 },
                 onRefreshClick = {
-                    showAddActions = false
                     // 走 requestRefresh 而不是直接刷新：藏着卡片时会先弹一次确认。
                     // 没藏着卡片时它内部直接走同一条刷新路径，交互与之前完全一样。
                     viewModel.requestRefresh()
@@ -228,7 +232,8 @@ fun ScheduleScreen(
                 onManageSemesters = onImportClick,
                 onReturnToCurrentClick = viewModel::returnToCurrentSemester,
                 onDrawerOpen = onDrawerOpen,
-                isRefreshing = uiState.isRefreshing
+                isRefreshing = uiState.isRefreshing,
+                useSurfaceColors = !uiState.showBackground
             )
             // 空态判定必须用**完整**课表：用户把某周或某课次的卡片全隐藏之后，
             // 展示列表会变空，但课表本身还在，不该整页变成「还没有课表 / 去导入课表」。
@@ -277,34 +282,10 @@ fun ScheduleScreen(
                             managedBlock = block
                         }
                     },
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    useSurfaceColors = !uiState.showBackground
                 )
             }
-        }
-        if (showAddActions) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { showAddActions = false }
-            )
-            ScheduleAddActionsPanel(
-                hasCustomBackground = com.glut.schedule.ui.components.shouldUseCustomBackground(uiState.customBackgroundUri),
-                onPickBackground = {
-                    onPickBackground()
-                    showAddActions = false
-                },
-                onClearBackground = {
-                    onClearBackground()
-                    showAddActions = false
-                },
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(top = 52.dp, end = 52.dp)
-            )
         }
         // 刷新后的变化明细（与小程序同构）：有变化时用卡片说明，可展开看全部。
         val diff = refreshDiff
@@ -387,9 +368,6 @@ fun ScheduleScreen(
         var keepHidden by remember(confirm) { mutableStateOf(true) }
         AlertDialog(
             onDismissRequest = viewModel::dismissRefreshConfirm,
-            containerColor = Color(0xFFFFFEFB),
-            titleContentColor = Color(0xFF141821),
-            textContentColor = Color(0xFF667085),
             title = { Text("刷新课表") },
             text = {
                 Column {
@@ -432,9 +410,9 @@ private fun RefreshDiffCard(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = Color(0xFFFFFEFB),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, Color(0xFFE4E0D7)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         shadowElevation = 6.dp
     ) {
         Row(
@@ -442,18 +420,35 @@ private fun RefreshDiffCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
-                modifier = Modifier.size(26.dp).clip(CircleShape).background(Color(0xFF3F7DF6)),
+                modifier = Modifier
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary),
                 contentAlignment = Alignment.Center
             ) {
-                Text("✓", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "✓",
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
             Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
-                Text("课表已更新", color = Color(0xFF141821), fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                Text(summary, color = Color(0xFF667085), fontSize = 13.sp)
+                Text(
+                    "课表已更新",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    summary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp
+                )
                 if (itemCount > 0) {
                     Text(
                         text = "查看全部 $itemCount 项",
-                        color = Color(0xFF3F7DF6),
+                        color = MaterialTheme.colorScheme.primary,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier
@@ -464,7 +459,7 @@ private fun RefreshDiffCard(
             }
             Text(
                 text = "×",
-                color = Color(0xFF98A2B3),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 22.sp,
                 modifier = Modifier.clickable(onClick = onDismiss).padding(horizontal = 4.dp)
             )
@@ -480,9 +475,6 @@ private fun RefreshDiffDetailDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFFFFFEFB),
-        titleContentColor = Color(0xFF141821),
-        textContentColor = Color(0xFF667085),
         title = { Text("本次课表变更") },
         text = {
             // 条目可能很多，用限高的纵向滚动框，别让弹窗被撑长。
@@ -493,13 +485,24 @@ private fun RefreshDiffDetailDialog(
                     .verticalScroll(rememberScrollState())
             ) {
                 diff.items.forEachIndexed { index, item ->
-                    if (index > 0) HorizontalDivider(color = Color(0xFFF0EDE7))
+                    if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(color = item.kind.badgeBackground(), shape = RoundedCornerShape(6.dp)) {
+                            val (badgeContainer, badgeContent) = when (item.kind) {
+                                ScheduleRefreshDiffItem.Kind.ADDED ->
+                                    MaterialTheme.colorScheme.tertiaryContainer to
+                                        MaterialTheme.colorScheme.onTertiaryContainer
+                                ScheduleRefreshDiffItem.Kind.REMOVED ->
+                                    MaterialTheme.colorScheme.errorContainer to
+                                        MaterialTheme.colorScheme.onErrorContainer
+                                ScheduleRefreshDiffItem.Kind.CHANGED ->
+                                    MaterialTheme.colorScheme.primaryContainer to
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                            }
+                            Surface(color = badgeContainer, shape = RoundedCornerShape(6.dp)) {
                                 Text(
                                     text = item.kind.label,
-                                    color = item.kind.badgeForeground(),
+                                    color = badgeContent,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -507,17 +510,25 @@ private fun RefreshDiffDetailDialog(
                             }
                             Text(
                                 text = item.title,
-                                color = Color(0xFF141821),
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.padding(start = 8.dp)
                             )
                         }
                         if (item.beforeText.isNotBlank()) {
-                            Text("原：${item.beforeText}", color = Color(0xFF667085), fontSize = 12.sp)
+                            Text(
+                                "原：${item.beforeText}",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 12.sp
+                            )
                         }
                         if (item.afterText.isNotBlank()) {
-                            Text("现：${item.afterText}", color = Color(0xFF344054), fontSize = 12.sp)
+                            Text(
+                                "现：${item.afterText}",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 12.sp
+                            )
                         }
                     }
                 }
@@ -529,58 +540,41 @@ private fun RefreshDiffDetailDialog(
     )
 }
 
-private fun ScheduleRefreshDiffItem.Kind.badgeBackground(): Color = when (this) {
-    ScheduleRefreshDiffItem.Kind.ADDED -> Color(0xFFEAF8F0)
-    ScheduleRefreshDiffItem.Kind.REMOVED -> Color(0xFFFFF0EE)
-    ScheduleRefreshDiffItem.Kind.CHANGED -> Color(0xFFEEF4FF)
-}
-
-private fun ScheduleRefreshDiffItem.Kind.badgeForeground(): Color = when (this) {
-    ScheduleRefreshDiffItem.Kind.ADDED -> Color(0xFF16794A)
-    ScheduleRefreshDiffItem.Kind.REMOVED -> Color(0xFFC24135)
-    ScheduleRefreshDiffItem.Kind.CHANGED -> Color(0xFF3F7DF6)
-}
-
 @Composable
 private fun ScheduleEmptyState(onImportClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(modifier = modifier.padding(horizontal = 28.dp, vertical = 72.dp), contentAlignment = Alignment.Center) {
-        Surface(color = Color(0xF2FFFFFB), shape = androidx.compose.foundation.shape.RoundedCornerShape(26.dp)) {
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            shape = RoundedCornerShape(26.dp)
+        ) {
             Column(
                 modifier = Modifier.padding(horizontal = 30.dp, vertical = 34.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("还没有课表", color = Color(0xFF141821), fontSize = 25.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                Text("登录教务系统，导入你的课程与考试", color = Color(0xFF5F6673), fontSize = 15.sp, modifier = Modifier.padding(top = 12.dp))
+                Text(
+                    "还没有课表",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 25.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "登录教务系统，导入你的课程与考试",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 15.sp,
+                    modifier = Modifier.padding(top = 12.dp)
+                )
                 Surface(
                     modifier = Modifier.padding(top = 28.dp).clickable(onClick = onImportClick),
-                    color = Color(0xFF3F7DF6), shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
-                ) { Text("去导入课表", color = Color.White, fontSize = 16.sp, modifier = Modifier.padding(horizontal = 30.dp, vertical = 14.dp)) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ScheduleAddActionsPanel(
-    hasCustomBackground: Boolean,
-    onPickBackground: () -> Unit,
-    onClearBackground: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier,
-        color = Color.Black.copy(alpha = 0.76f),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            TextButton(onClick = onPickBackground) {
-                Text(text = "自定义背景", color = Color.White, fontSize = 13.sp)
-            }
-            TextButton(onClick = onClearBackground, enabled = hasCustomBackground) {
-                Text(text = "恢复默认背景", color = Color.White, fontSize = 13.sp)
+                    color = MaterialTheme.colorScheme.primary,
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text(
+                        "去导入课表",
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        fontSize = 16.sp,
+                        modifier = Modifier.padding(horizontal = 30.dp, vertical = 14.dp)
+                    )
+                }
             }
         }
     }
@@ -616,4 +610,3 @@ fun courseBlocksByWeek(
         )
     }
 }
-

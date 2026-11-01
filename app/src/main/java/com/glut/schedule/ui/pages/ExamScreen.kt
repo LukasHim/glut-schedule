@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -52,21 +53,26 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
-private val ExamPaperBackground = Color(0xFFF6F4EF)
-private val ExamPaperCard = Color(0xFFFFFEFB)
-private val ExamTextPrimary = Color(0xFF141821)
-private val ExamTextSecondary = Color(0xFF667085)
-private val ExamTextTertiary = Color(0xFF8A93A3)
-private val ExamDivider = Color(0xFFDDE2EA)
-private val ExamAccent = Color(0xFF3F7DF6)
-private val ExamAccentSoft = Color(0xFFEAF1FF)
-private val ExamWarning = Color(0xFFE8752A)
-private val ExamWarningSoft = Color(0xFFFFEFE4)
-private val ExamCardBorder = Color(0xFFEDE8DE)
-private val ExamToday = Color(0xFFDC2626)
-private val ExamSoon = Color(0xFFF59E0B)
-private val ExamLater = Color(0xFF16A34A)
-private val ExamCompleted = Color(0xFF9AA2AF)
+/*
+ * 颜色一律取自 MaterialTheme.colorScheme（MD3 黄色主题），深浅色自适应。
+ * 注意：Canvas / DrawScope 这类非 @Composable 作用域不能直接读这些属性，
+ * 需要先在 @Composable 里取出局部变量再传入。
+ */
+private val ExamPaperBackground: Color @Composable get() = MaterialTheme.colorScheme.background
+private val ExamPaperCard: Color @Composable get() = MaterialTheme.colorScheme.surfaceContainerLow
+private val ExamTextPrimary: Color @Composable get() = MaterialTheme.colorScheme.onSurface
+private val ExamTextSecondary: Color @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
+private val ExamTextTertiary: Color @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
+private val ExamDivider: Color @Composable get() = MaterialTheme.colorScheme.outlineVariant
+private val ExamAccent: Color @Composable get() = MaterialTheme.colorScheme.primary
+private val ExamAccentSoft: Color @Composable get() = MaterialTheme.colorScheme.primaryContainer
+private val ExamWarning: Color @Composable get() = MaterialTheme.colorScheme.secondary
+private val ExamWarningSoft: Color @Composable get() = MaterialTheme.colorScheme.secondaryContainer
+private val ExamCardBorder: Color @Composable get() = MaterialTheme.colorScheme.outlineVariant
+private val ExamToday: Color @Composable get() = MaterialTheme.colorScheme.error
+private val ExamSoon: Color @Composable get() = MaterialTheme.colorScheme.secondary
+private val ExamLater: Color @Composable get() = MaterialTheme.colorScheme.tertiary
+private val ExamCompleted: Color @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
 
 @Composable
 fun ExamScreen(
@@ -186,10 +192,12 @@ private fun ExamTimelineGroup(
                 .width(42.dp)
                 .fillMaxHeight()
         ) {
+            // DrawScope 不是 @Composable，这里先取出颜色再交给 Canvas。
+            val dividerColor = ExamDivider
             if (!isLast) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     drawLine(
-                        color = ExamDivider,
+                        color = dividerColor,
                         start = Offset(x = 12.dp.toPx(), y = 18.dp.toPx()),
                         end = Offset(x = 12.dp.toPx(), y = size.height),
                         strokeWidth = 1.5.dp.toPx(),
@@ -276,7 +284,7 @@ private fun ExamCard(
                 .graphicsLayer(alpha = if (completed) 0.82f else 1f),
             color = ExamPaperCard,
             shape = RoundedCornerShape(14.dp),
-            border = BorderStroke(1.dp, if (completed) Color(0xFFE2E5EA) else ExamCardBorder),
+            border = BorderStroke(1.dp, if (completed) MaterialTheme.colorScheme.outlineVariant else ExamCardBorder),
             shadowElevation = if (completed) 1.dp else 6.dp
         ) {
             Row(
@@ -288,7 +296,7 @@ private fun ExamCard(
             ) {
                 CourseIcon(
                     icon = courseVisual.icon,
-                    color = courseVisual.accent,
+                    color = courseVisual.accent.toColor(),
                     modifier = Modifier
                         .padding(top = 2.dp)
                         .size(44.dp)
@@ -363,13 +371,13 @@ private fun ExamCard(
         if (completed) {
             Text(
                 text = "已结束",
-                color = Color(0xFF6B7280),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .clip(RoundedCornerShape(bottomStart = 14.dp, topEnd = 12.dp))
-                    .background(Color(0xFFD1D5DB))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                     .padding(horizontal = 10.dp, vertical = 3.dp)
             )
         }
@@ -431,6 +439,7 @@ private data class ExamTypeColors(
     val content: Color
 )
 
+@Composable
 private fun examTypeColors(examType: String): ExamTypeColors {
     return if (examType.contains("补考") || examType.contains("重修")) {
         ExamTypeColors(container = ExamWarningSoft, content = ExamWarning)
@@ -444,6 +453,7 @@ private data class ExamDateStatusColors(
     val content: Color
 )
 
+@Composable
 private fun examDateStatusColors(urgency: ExamDateUrgency): ExamDateStatusColors {
     return when (urgency) {
         ExamDateUrgency.Today -> ExamDateStatusColors(

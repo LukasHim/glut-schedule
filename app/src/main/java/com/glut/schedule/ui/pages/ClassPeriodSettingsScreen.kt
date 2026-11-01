@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,7 +29,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -152,7 +152,7 @@ fun ClassPeriodSettingsScreen(
                     CampusType.NANNING -> "南宁分校 · 11节"
                     CampusType.GRADUATE -> "研究生 · 12节"
                 },
-                color = Color(0xFF667085),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 14.sp,
                 modifier = Modifier.padding(top = 18.dp, bottom = 4.dp)
             )
@@ -161,7 +161,7 @@ fun ClassPeriodSettingsScreen(
                 // 明确写出「可以留空」和「留空的后果」，否则用户会以为界面坏了。
                 Text(
                     text = "研究生教务只提供节次、没有上课时间。可以留空不填；一旦填写，需要 12 节全部填完且不重叠。留空时课表不显示时间，课时统计与上课提醒不可用。",
-                    color = Color(0xFF667085),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(bottom = 6.dp)
                 )
@@ -224,7 +224,7 @@ fun ClassPeriodSettingsScreen(
             item {
                 Text(
                     text = validationMessage,
-                    color = Color(0xFFDC2626),
+                    color = MaterialTheme.colorScheme.error,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(horizontal = 4.dp)
                 )
@@ -257,7 +257,7 @@ fun ClassPeriodSettingsScreen(
                         Toast.makeText(context, "上课时间已保存", Toast.LENGTH_SHORT).show()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3F7DF6))
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
                     Text("保存")
                 }
@@ -272,7 +272,7 @@ fun ClassPeriodSettingsScreen(
                                 else -> "恢复雁山校区默认时间"
                             }
                         } else "恢复默认时间",
-                        color = Color(0xFF667085)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -300,7 +300,7 @@ fun ClassPeriodSettingsScreen(
                         validationMessage = ""
                     }
                     pendingProfile = null
-                }) { Text("确定", color = Color(0xFFDC2626)) }
+                }) { Text("确定", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
                 TextButton(onClick = {
@@ -335,7 +335,7 @@ fun ClassPeriodSettingsScreen(
                     onResetPeriods(editor.profile)
                     validationMessage = ""
                     Toast.makeText(context, "已恢复默认时间", Toast.LENGTH_SHORT).show()
-                }) { Text("确定", color = Color(0xFFDC2626)) }
+                }) { Text("确定", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
                 TextButton(onClick = { showResetConfirm = false }) { Text("取消") }
@@ -373,7 +373,7 @@ private fun ClassPeriodRow(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color(0xFFFFFEFB),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         shape = RoundedCornerShape(14.dp)
     ) {
         Row(
@@ -382,7 +382,7 @@ private fun ClassPeriodRow(
         ) {
             Text(
                 text = label,
-                color = Color(0xFF141821),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.weight(1f)
@@ -391,7 +391,7 @@ private fun ClassPeriodRow(
                 value = period.startsAt,
                 onClick = { showPicker(period.startsAt, onStartSelected) }
             )
-            Text("—", color = Color(0xFF98A2B3), modifier = Modifier.padding(horizontal = 8.dp))
+            Text("—", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 8.dp))
             TimeValue(
                 value = period.endsAt,
                 onClick = { showPicker(period.endsAt, onEndSelected) }
@@ -403,7 +403,7 @@ private fun ClassPeriodRow(
 @Composable
 private fun TimeValue(value: String, onClick: () -> Unit) {
     Surface(
-        color = Color(0xFFF0F4FC),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
         shape = RoundedCornerShape(8.dp),
         modifier = Modifier
             .heightIn(min = 48.dp)
@@ -411,7 +411,7 @@ private fun TimeValue(value: String, onClick: () -> Unit) {
     ) {
         Text(
             text = value,
-            color = Color(0xFF3F7DF6),
+            color = MaterialTheme.colorScheme.primary,
             fontSize = 15.sp,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
         )

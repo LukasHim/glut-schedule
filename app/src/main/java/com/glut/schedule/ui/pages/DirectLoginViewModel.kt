@@ -50,6 +50,7 @@ import com.glut.schedule.service.network.readBytesLimited
 import com.glut.schedule.service.holiday.TimorHolidayClient
 import com.glut.schedule.service.holiday.refreshMissingHolidayYears
 import com.glut.schedule.service.network.readStringLimited
+import com.glut.schedule.service.ocr.CaptchaOcr
 import com.glut.schedule.ui.SingleFlightGuard
 import com.glut.schedule.service.parser.AcademicSemesterCatalogPlan
 import com.glut.schedule.service.parser.AcademicSemesterParser
@@ -88,6 +89,10 @@ data class DirectLoginUiState(
     val showCaptchaDialog: Boolean = false,
     val captchaBitmap: Bitmap? = null,
     val captchaInput: String = "",
+    /** OCR 正在识别当前这张验证码图片；此时输入框仍可手动输入。 */
+    val isCaptchaRecognizing: Boolean = false,
+    /** 当前输入框的内容来自自动识别，用于在弹窗里提示用户核对。 */
+    val captchaAutoRecognized: Boolean = false,
     //
     val message: String = "",
     val importResult: ImportResult? = null,
@@ -159,7 +164,9 @@ class DirectLoginViewModel(
     private val scoreParser: ScoreParser,
     private val gradeExamParser: GradeExamParser = GradeExamParser(),
     private val studyPlanParser: StudyPlanParser = StudyPlanParser(),
-    private val timorHolidayClient: TimorHolidayClient = TimorHolidayClient()
+    private val timorHolidayClient: TimorHolidayClient = TimorHolidayClient(),
+    /** 生产环境传入 [com.glut.schedule.service.ocr.PaddleCaptchaOcr]；单元测试可省略。 */
+    private val captchaOcr: CaptchaOcr? = null
 ) : ViewModel() {
     private val loginGuard = SingleFlightGuard()
 
@@ -177,6 +184,8 @@ class DirectLoginViewModel(
     private var credentialsCleared = false
     /** 用户是否手动动过来源下拉框；动过就不再被「上次成功的来源」覆盖。 */
     private var sourceTouchedByUser = false
+    /** 让过期的 OCR 结果失效：刷新图片、关闭弹窗后，旧图片的识别结果不能回填。 */
+    private var captchaOcrRequestId = 0
 
     // 南宁登录会话状态（放在 uiState 之外，避免 data class 里塞大对象）
     private var nanningCaptchaBytes: ByteArray? = null
@@ -264,7 +273,12 @@ class DirectLoginViewModel(
         _uiState.value = _uiState.value.copy(importCompleted = false)
     }
 
-    fun updateCaptchaInput(input: String) { _uiState.value = _uiState.value.copy(captchaInput = input) }
+    fun updateCaptchaInput(input: String) {
+        _uiState.value = _uiState.value.copy(
+            captchaInput = input,
+            captchaAutoRecognized = false
+        )
+    }
 
     fun downloadSemester(semesterId: String) {
         viewModelScope.launch {
@@ -316,6 +330,7 @@ class DirectLoginViewModel(
 
     fun clearLoginState() {
         credentialsCleared = true
+        captchaOcrRequestId++
         loginHttpClient = AcademicLoginHttpClient()
         nanningCaptchaBytes = null
         nanningCookieJar = null
@@ -388,11 +403,60 @@ class DirectLoginViewModel(
         }
     }
 
+    /**
+     * 用 PaddleOCR 识别刚拿到的验证码，并在用户尚未输入时自动回填。
+     *
+     * 识别在后台进行，弹窗立即显示。用户在识别完成前手动输入的内容优先级更高，
+     * 不会被后到的识别结果覆盖。
+     */
+    private fun recognizeCaptcha(bitmap: Bitmap?) {
+        val requestId = ++captchaOcrRequestId
+        val ocr = captchaOcr
+        if (bitmap == null || ocr == null) {
+            _uiState.value = _uiState.value.copy(
+                isCaptchaRecognizing = false,
+                captchaAutoRecognized = false
+            )
+            return
+        }
+        _uiState.value = _uiState.value.copy(
+            isCaptchaRecognizing = true,
+            captchaAutoRecognized = false
+        )
+        viewModelScope.launch {
+            val text = try {
+                ocr.recognize(bitmap)
+            } catch (cancellation: kotlinx.coroutines.CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                null
+            }
+            if (requestId != captchaOcrRequestId) return@launch
+            val current = _uiState.value
+            if (!current.showCaptchaDialog) return@launch
+            _uiState.value = when {
+                text.isNullOrBlank() -> current.copy(isCaptchaRecognizing = false)
+                current.captchaInput.isBlank() -> current.copy(
+                    captchaInput = text,
+                    isCaptchaRecognizing = false,
+                    captchaAutoRecognized = true
+                )
+                else -> current.copy(isCaptchaRecognizing = false)
+            }
+        }
+    }
+
     // ---- Nanning native captcha flow ----
 
     private fun startNanningLoginFlow(guardAlreadyStarted: Boolean = false) {
         if (!guardAlreadyStarted && !loginGuard.tryStart()) return
-        _uiState.value = _uiState.value.copy(isLoggingIn = true, message = "正在获取验证码...")
+        captchaOcrRequestId++
+        _uiState.value = _uiState.value.copy(
+            isLoggingIn = true,
+            message = "正在获取验证码...",
+            isCaptchaRecognizing = false,
+            captchaAutoRecognized = false
+        )
         viewModelScope.launch {
             try {
                 // Create fresh CookieJar for this login session (like a new browser tab)
@@ -432,6 +496,13 @@ class DirectLoginViewModel(
                 nanningCaptchaBytes = captchaBytes
 
                 val bitmap = BitmapFactory.decodeByteArray(captchaBytes, 0, captchaBytes.size)
+                if (bitmap == null) {
+                    _uiState.value = _uiState.value.copy(
+                        isLoggingIn = false,
+                        message = "验证码图片解析失败，请重试"
+                    )
+                    return@launch
+                }
                 _uiState.value = _uiState.value.copy(
                     isLoggingIn = false,
                     showCaptchaDialog = true,
@@ -439,6 +510,7 @@ class DirectLoginViewModel(
                     captchaInput = "",
                     message = ""
                 )
+                recognizeCaptcha(bitmap)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoggingIn = false, message = "获取验证码失败: ${e.message}")
             } finally {
@@ -490,7 +562,14 @@ class DirectLoginViewModel(
     }
 
     fun cancelCaptcha() {
-        _uiState.value = _uiState.value.copy(showCaptchaDialog = false, captchaInput = "", isLoggingIn = false)
+        captchaOcrRequestId++
+        _uiState.value = _uiState.value.copy(
+            showCaptchaDialog = false,
+            captchaInput = "",
+            isCaptchaRecognizing = false,
+            captchaAutoRecognized = false,
+            isLoggingIn = false
+        )
         nanningCaptchaBytes = null
         nanningCookieJar = null
         graduateClient = null
@@ -519,7 +598,14 @@ class DirectLoginViewModel(
                 if (bytes != null) {
                     nanningCaptchaBytes = bytes
                     val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    _uiState.value = _uiState.value.copy(captchaBitmap = bitmap, captchaInput = "")
+                    if (bitmap != null) {
+                        _uiState.value = _uiState.value.copy(
+                            captchaBitmap = bitmap,
+                            captchaInput = "",
+                            captchaAutoRecognized = false
+                        )
+                        recognizeCaptcha(bitmap)
+                    }
                 }
             } catch (_: Exception) { }
         }
@@ -630,7 +716,13 @@ class DirectLoginViewModel(
      */
     private fun startGraduateLoginFlow(guardAlreadyStarted: Boolean = false) {
         if (!guardAlreadyStarted && !loginGuard.tryStart()) return
-        _uiState.value = _uiState.value.copy(isLoggingIn = true, message = "正在获取验证码...")
+        captchaOcrRequestId++
+        _uiState.value = _uiState.value.copy(
+            isLoggingIn = true,
+            message = "正在获取验证码...",
+            isCaptchaRecognizing = false,
+            captchaAutoRecognized = false
+        )
         viewModelScope.launch {
             try {
                 val client = GraduateClient()
@@ -647,13 +739,22 @@ class DirectLoginViewModel(
                     return@launch
                 }
                 graduateClient = client
+                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                if (bitmap == null) {
+                    _uiState.value = _uiState.value.copy(
+                        isLoggingIn = false,
+                        message = "验证码图片解析失败，请重试"
+                    )
+                    return@launch
+                }
                 _uiState.value = _uiState.value.copy(
                     isLoggingIn = false,
                     showCaptchaDialog = true,
-                    captchaBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size),
+                    captchaBitmap = bitmap,
                     captchaInput = "",
                     message = ""
                 )
+                recognizeCaptcha(bitmap)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoggingIn = false, message = "获取验证码失败: ${e.message}")
             } finally {
@@ -667,10 +768,13 @@ class DirectLoginViewModel(
         val client = graduateClient ?: return
         viewModelScope.launch {
             val bytes = withContext(Dispatchers.IO) { runCatching { client.captcha() }.getOrNull() } ?: return@launch
+            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return@launch
             _uiState.value = _uiState.value.copy(
-                captchaBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size),
-                captchaInput = ""
+                captchaBitmap = bitmap,
+                captchaInput = "",
+                captchaAutoRecognized = false
             )
+            recognizeCaptcha(bitmap)
         }
     }
 
@@ -1362,7 +1466,8 @@ class DirectLoginViewModelFactory(
     private val scoreParser: ScoreParser,
     private val gradeExamParser: GradeExamParser = GradeExamParser(),
     private val studyPlanParser: StudyPlanParser = StudyPlanParser(),
-    private val timorHolidayClient: TimorHolidayClient = TimorHolidayClient()
+    private val timorHolidayClient: TimorHolidayClient = TimorHolidayClient(),
+    private val captchaOcr: CaptchaOcr? = null
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -1370,7 +1475,7 @@ class DirectLoginViewModelFactory(
             loginService, sessionStore, credentialStore,
             scheduleRepository, settingsStore, apiProbeService,
             academicExamService, semesterImportService, semesterBulkDownloadCoordinator,
-            scoreParser, gradeExamParser, studyPlanParser, timorHolidayClient
+            scoreParser, gradeExamParser, studyPlanParser, timorHolidayClient, captchaOcr
         ) as T
     }
 }

@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,16 +40,6 @@ import com.glut.schedule.data.model.ProfessionalScoreMissingCourse
 import com.glut.schedule.data.model.ProfessionalScoreResult
 import java.util.Locale
 
-private val PSPrimary = Color(0xFF141821)
-private val PSSecondary = Color(0xFF667085)
-private val PSAccent = Color(0xFF3F7DF6)
-private val PSPageBg = Color(0xFFF6F4EF)
-private val PSCardBg = Color(0xFFFFFEFB)
-private val PSChipBg = Color(0xFFE8E4D6)
-private val PSDark = Color(0xFF141821)
-private val PSSuccess = Color(0xFF16A34A)
-private val PSWarning = Color(0xFFD97706)
-
 @Composable
 fun ProfessionalScoreScreen(
     viewModel: ProfessionalScoreViewModel,
@@ -65,20 +56,20 @@ fun ProfessionalScoreScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(PSPageBg)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         if (uiState.isRefreshing) {
             LinearProgressIndicator(
                 modifier = Modifier.fillMaxWidth(),
-                color = PSAccent,
-                trackColor = PSAccent.copy(alpha = 0.12f)
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
             )
         }
 
         if (uiState.message.isNotBlank()) {
             Text(
                 uiState.message,
-                color = PSSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 14.sp,
                 modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp)
             )
@@ -166,12 +157,12 @@ private fun AcademicYearSelector(
                     .weight(1f)
                     .heightIn(min = 44.dp)
                     .clickable { onSelect(academicYear) },
-                color = if (selected) PSDark else PSChipBg,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest,
                 shape = RoundedCornerShape(18.dp)
             ) {
                 Text(
                     academicYear,
-                    color = if (selected) Color.White else PSPrimary,
+                    color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
                     fontSize = 13.sp,
                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                     maxLines = 1,
@@ -189,12 +180,12 @@ private fun AcademicYearSelector(
 private fun ScoreUnavailableNote(reason: String) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color(0xFFFFF7ED),
+        color = MaterialTheme.colorScheme.errorContainer,
         shape = RoundedCornerShape(12.dp)
     ) {
         Text(
             reason,
-            color = PSWarning,
+            color = MaterialTheme.colorScheme.error,
             fontSize = 13.sp,
             lineHeight = 19.sp,
             modifier = Modifier.padding(14.dp)
@@ -206,25 +197,25 @@ private fun ScoreUnavailableNote(reason: String) {
 private fun ProfessionalScoreSummary(result: ProfessionalScoreResult) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = PSDark,
+        color = MaterialTheme.colorScheme.primary,
         shape = RoundedCornerShape(16.dp)
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             Text(
                 "${result.academicYear}（${result.includedSemesters.joinToString(" + ")}）",
-                color = Color.White.copy(alpha = 0.74f),
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.74f),
                 fontSize = 13.sp
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 result.professionalScore?.let { String.format("%.2f", it) } ?: "--",
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onPrimary,
                 fontSize = 38.sp,
                 fontWeight = FontWeight.Bold
             )
             Text(
                 "专业学习成绩",
-                color = Color.White.copy(alpha = 0.78f),
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.78f),
                 fontSize = 13.sp
             )
             Spacer(modifier = Modifier.height(14.dp))
@@ -245,13 +236,13 @@ private fun SummaryPill(label: String, value: String, modifier: Modifier = Modif
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White.copy(alpha = 0.10f))
+            .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.10f))
             .padding(horizontal = 10.dp, vertical = 9.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(label, color = Color.White.copy(alpha = 0.64f), fontSize = 11.sp)
+        Text(label, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.64f), fontSize = 11.sp)
         Spacer(modifier = Modifier.height(2.dp))
-        Text(value, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text(value, color = MaterialTheme.colorScheme.onPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -259,12 +250,12 @@ private fun SummaryPill(label: String, value: String, modifier: Modifier = Modif
 private fun RuleNote() {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = PSCardBg,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         shape = RoundedCornerShape(12.dp)
     ) {
         Text(
             "公式：Σ(课程百分制成绩 × 教学计划学分) ÷ Σ教学计划学分。按一个学年（秋季 + 次年春季）统一计算；课程范围以本专业培养计划当学年应修读课程为准，排除补修、重学/重修、体育、公共选修/任选、辅修、双学位等。五级制按优95、良85、中75、及格65、不及格40折算；补考、缓考、作弊/旷考按测评规则处理。",
-            color = PSSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 12.sp,
             lineHeight = 18.sp,
             modifier = Modifier.padding(14.dp)
@@ -281,8 +272,8 @@ private fun SectionTitle(title: String, trailing: String) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(title, color = PSPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-        Text(trailing, color = PSSecondary, fontSize = 12.sp)
+        Text(title, color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        Text(trailing, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
     }
 }
 
@@ -290,7 +281,7 @@ private fun SectionTitle(title: String, trailing: String) {
 private fun IncludedCourseRow(course: ProfessionalScoreCourse) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = PSCardBg,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
@@ -298,7 +289,7 @@ private fun IncludedCourseRow(course: ProfessionalScoreCourse) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         course.courseName,
-                        color = PSPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 2,
@@ -317,28 +308,28 @@ private fun IncludedCourseRow(course: ProfessionalScoreCourse) {
                     )
                     Text(
                         "${formatNum(course.credit)} 学分",
-                        color = PSSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp
                     )
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            HorizontalDivider(color = Color(0xFFEDE8DE), thickness = 0.5.dp)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("原始成绩：${course.scoreText}", color = PSSecondary, fontSize = 12.sp)
+                Text("原始成绩：${course.scoreText}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                 Text(
                     "加权 ${formatProfessionalScoreNumber(course.weightedScore)}",
-                    color = PSSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.sp
                 )
             }
             if (course.scoreSourceReason.isNotBlank()) {
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(course.scoreSourceReason, color = PSSecondary, fontSize = 11.sp)
+                Text(course.scoreSourceReason, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
             }
         }
     }
@@ -348,7 +339,7 @@ private fun IncludedCourseRow(course: ProfessionalScoreCourse) {
 private fun MissingCourseRow(course: ProfessionalScoreMissingCourse) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = PSWarning.copy(alpha = 0.10f),
+        color = MaterialTheme.colorScheme.error.copy(alpha = 0.10f),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
@@ -356,7 +347,7 @@ private fun MissingCourseRow(course: ProfessionalScoreMissingCourse) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         course.courseName,
-                        color = PSPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 2,
@@ -367,13 +358,13 @@ private fun MissingCourseRow(course: ProfessionalScoreMissingCourse) {
                 }
                 Text(
                     "${formatNum(course.credit)} 学分",
-                    color = PSWarning,
+                    color = MaterialTheme.colorScheme.error,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
-            Text(course.reason, color = PSSecondary, fontSize = 12.sp)
+            Text(course.reason, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
         }
     }
 }
@@ -395,7 +386,7 @@ private fun CourseMeta(groupName: String, attribute: String) {
             Spacer(modifier = Modifier.width(6.dp))
             Text(
                 groupName,
-                color = PSSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -412,7 +403,7 @@ private fun EmptyProfessionalScoreState(message: String) {
     ) {
         Text(
             message,
-            color = PSSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 14.sp,
             textAlign = TextAlign.Center,
             lineHeight = 21.sp,
@@ -421,17 +412,19 @@ private fun EmptyProfessionalScoreState(message: String) {
     }
 }
 
+@Composable
 private fun attrColor(attribute: String): Color = when (attribute) {
-    "必修" -> PSAccent
-    "限选" -> PSWarning
-    else -> PSSuccess
+    "必修" -> MaterialTheme.colorScheme.primary
+    "限选" -> MaterialTheme.colorScheme.error
+    else -> MaterialTheme.colorScheme.tertiary
 }
 
+@Composable
 private fun scoreColor(score: Double): Color = when {
-    score >= 85.0 -> PSSuccess
-    score >= 70.0 -> PSAccent
-    score >= 60.0 -> PSWarning
-    else -> Color(0xFFDC2626)
+    score >= 85.0 -> MaterialTheme.colorScheme.tertiary
+    score >= 70.0 -> MaterialTheme.colorScheme.primary
+    score >= 60.0 -> MaterialTheme.colorScheme.error
+    else -> MaterialTheme.colorScheme.error
 }
 
 private fun formatNum(value: Double): String {

@@ -11,7 +11,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
@@ -53,6 +52,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHost
@@ -76,6 +76,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -93,13 +94,23 @@ import com.glut.schedule.service.background.DownloadedRemoteBackground
 import com.glut.schedule.service.background.RemoteBackgroundItem
 import com.glut.schedule.ui.components.ScheduleBackgroundStore
 
-private val GalleryBackgroundColor = Color(0xFFF6F4EF)
-private val GallerySurfaceColor = Color(0xFFFFFEFB)
-private val GalleryTextColor = Color(0xFF141821)
-private val GallerySecondaryTextColor = Color(0xFF667085)
-private val GalleryPrimaryColor = Color(0xFF2563EB)
-private val GalleryDangerColor = Color(0xFFDC2626)
-private val ArtworkBackgroundColor = Color(0xFF101116)
+// 颜色统一取 MaterialTheme 的 MD3 角色，随浅色/深色主题自动适配；
+// 保留原变量名，避免在每个使用点重复展开 colorScheme 链。
+private val GalleryBackgroundColor: Color
+    @Composable get() = MaterialTheme.colorScheme.background
+private val GallerySurfaceColor: Color
+    @Composable get() = MaterialTheme.colorScheme.surfaceContainerLow
+private val GalleryTextColor: Color
+    @Composable get() = MaterialTheme.colorScheme.onSurface
+private val GallerySecondaryTextColor: Color
+    @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
+private val GalleryPrimaryColor: Color
+    @Composable get() = MaterialTheme.colorScheme.primary
+private val GalleryDangerColor: Color
+    @Composable get() = MaterialTheme.colorScheme.error
+/** 大图查看器的背板：任意画作前都要压暗，取遮罩色（scrim）。 */
+private val ArtworkBackgroundColor: Color
+    @Composable get() = MaterialTheme.colorScheme.scrim
 
 @Composable
 fun RemoteBackgroundGalleryScreen(
@@ -282,7 +293,7 @@ private fun RemoteGalleryCard(
                     Icon(
                         Icons.Outlined.Storage,
                         contentDescription = "已缓存原图",
-                        tint = Color(0xFF15803D),
+                        tint = MaterialTheme.colorScheme.tertiary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -309,7 +320,9 @@ private fun RemoteArtworkDetail(
     val bitmap = rememberRemoteBitmap(previewUri, backgroundStore)
     val scrollState = rememberScrollState()
     var showFullscreenViewer by remember(item.id) { mutableStateOf(false) }
-    val darkTheme = isSystemInDarkTheme()
+    // 跟随应用实际生效的主题（含「跟随系统/浅色/深色」与动态取色），而不是只看系统设置：
+    // 用户强制浅色时系统可能是深色，反之亦然。
+    val darkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val pageColor = if (darkTheme) Color(0xFF171819) else Color(0xFFF7F2E8)
     val imageBackdrop = if (darkTheme) Color(0xFF0F1011) else Color(0xFFE7DFD1)
     val primaryText = if (darkTheme) Color(0xFFF1EFEA) else Color(0xFF181817)
@@ -611,7 +624,7 @@ private fun RemoteBackgroundImage(
     contentScale: ContentScale
 ) {
     val bitmap = rememberRemoteBitmap(uri, backgroundStore)
-    Box(modifier = modifier.background(Color(0xFFE5E7EB)), contentAlignment = Alignment.Center) {
+    Box(modifier = modifier.background(MaterialTheme.colorScheme.surfaceContainerHighest), contentAlignment = Alignment.Center) {
         bitmap?.let {
             Image(bitmap = it, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = contentScale)
         } ?: CircularProgressIndicator(modifier = Modifier.size(24.dp), color = GalleryPrimaryColor, strokeWidth = 2.dp)
@@ -684,7 +697,7 @@ private fun RemoteBackgroundCacheSheet(
                         )
                     }
                 }
-                if (index < assets.lastIndex) HorizontalDivider(color = Color(0xFFE7E3DA))
+                if (index < assets.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
         }
     }

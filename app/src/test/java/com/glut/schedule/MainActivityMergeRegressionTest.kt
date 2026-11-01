@@ -32,16 +32,16 @@ class MainActivityMergeRegressionTest {
             .substringAfter("private fun SettingsPage(")
             .substringBefore("@Composable\nprivate fun CourseColorsPage")
 
-        assertTrue(settingsPage.contains(".verticalScroll(rememberScrollState())"))
-        assertTrue(settingsPage.contains("Text(\"重置应用\""))
+        assertTrue(settingsPage.contains("LazyColumn("))
+        assertTrue(settingsPage.contains("\"重置应用\""))
     }
 
     @Test
     fun backgroundGalleryShowsOnlyTheRemoteCatalog() {
         assertTrue(source.contains("BACKGROUND_GALLERY(\"画廊\")"))
         assertTrue(source.contains("SettingsSubPage.BACKGROUND_GALLERY -> remoteBackgroundGalleryViewModel?.let"))
-        assertTrue(source.contains("Text(\"画廊\""))
-        assertTrue(source.contains("Text(\"自定义背景\""))
+        assertTrue(source.contains("title = \"画廊\""))
+        assertTrue(source.contains("title = \"自定义背景\""))
         assertFalse(gallerySource.contains("Text(\"内置背景\""))
         assertFalse(gallerySource.contains("Text(\"在线画廊\""))
         assertFalse(gallerySource.contains("BuiltInGalleryCard"))

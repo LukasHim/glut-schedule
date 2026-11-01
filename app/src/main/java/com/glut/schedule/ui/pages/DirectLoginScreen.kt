@@ -37,6 +37,7 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -59,6 +60,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.glut.schedule.data.model.AcademicSemester
@@ -68,12 +70,20 @@ import com.glut.schedule.service.academic.SemesterDownloadItemStatus
 import com.glut.schedule.service.academic.SemesterDownloadMode
 import com.glut.schedule.service.academic.SemesterDownloadState
 
-private val LoginPrimary = Color(0xFF141821)
-private val LoginSecondary = Color(0xFF667085)
-private val LoginAccent = Color(0xFF3F7DF6)
-private val LoginPageBg = Color(0xFFF6F4EF)
-private val LoginCardBg = Color(0xFFFFFEFB)
-private val LoginBorder = Color(0xFFD1D5DB)
+// 颜色统一取 MaterialTheme 的 MD3 角色，随浅色/深色主题自动适配；
+// 保留原变量名，避免在每个使用点重复展开 colorScheme 链。
+private val LoginPrimary: Color
+    @Composable get() = MaterialTheme.colorScheme.onSurface
+private val LoginSecondary: Color
+    @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
+private val LoginAccent: Color
+    @Composable get() = MaterialTheme.colorScheme.primary
+private val LoginPageBg: Color
+    @Composable get() = MaterialTheme.colorScheme.background
+private val LoginCardBg: Color
+    @Composable get() = MaterialTheme.colorScheme.surfaceContainerLow
+private val LoginBorder: Color
+    @Composable get() = MaterialTheme.colorScheme.outlineVariant
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -151,7 +161,7 @@ fun DirectLoginScreen(
                     checked = uiState.rememberPassword,
                     onCheckedChange = viewModel::updateRememberPassword,
                     enabled = uiState.secureCredentialStorageAvailable,
-                    colors = CheckboxDefaults.colors(checkedColor = LoginAccent, uncheckedColor = Color(0xFF9CA3AF))
+                    colors = CheckboxDefaults.colors(checkedColor = LoginAccent, uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant)
                 )
                 Text(
                     if (uiState.secureCredentialStorageAvailable) "记住密码" else "系统加密存储不可用，已禁止记住密码",
@@ -213,19 +223,19 @@ fun DirectLoginScreen(
                 onClick = { if (uiState.importCompleted) onDone() else viewModel.loginAndImport() },
                 enabled = !uiState.isLoggingIn,
                 modifier = Modifier.fillMaxWidth().height(50.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = LoginAccent, disabledContainerColor = Color(0xFFB0C4DE)),
+                colors = ButtonDefaults.buttonColors(containerColor = LoginAccent, disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 when {
                     uiState.isLoggingIn -> {
-                        CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(22.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text("正在导入...", fontSize = 16.sp, color = Color.White)
+                        Text("正在导入...", fontSize = 16.sp, color = MaterialTheme.colorScheme.onPrimary)
                     }
                     uiState.importCompleted ->
-                        Text("查看课表 ›", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("查看课表 ›", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                     else ->
-                        Text("登 录 并 导 入", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("登 录 并 导 入", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                 }
             }
 
@@ -246,8 +256,8 @@ fun DirectLoginScreen(
             if (uiState.message.isNotBlank()) {
                 Spacer(modifier = Modifier.height(12.dp))
                 val messageColor = when (loginMessageTone(uiState.message)) {
-                    LoginMessageTone.SUCCESS -> Color(0xFF2D9A72)
-                    LoginMessageTone.ERROR -> Color(0xFFDC2626)
+                    LoginMessageTone.SUCCESS -> MaterialTheme.colorScheme.tertiary
+                    LoginMessageTone.ERROR -> MaterialTheme.colorScheme.error
                     LoginMessageTone.INFO -> LoginSecondary
                 }
                 Text(uiState.message, color = messageColor, fontSize = 14.sp)
@@ -261,10 +271,10 @@ fun DirectLoginScreen(
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     ImportResultCard("课程", result.courseCount, LoginAccent, Modifier.weight(1f))
                     if (uiState.isGraduate) {
-                        ImportResultCard("成绩", result.scoreCount, Color(0xFF7C5FE7), Modifier.weight(1f))
-                        ImportResultCard("培养计划", result.studyPlanCount, Color(0xFF2D9A72), Modifier.weight(1f))
+                        ImportResultCard("成绩", result.scoreCount, MaterialTheme.colorScheme.secondary, Modifier.weight(1f))
+                        ImportResultCard("培养计划", result.studyPlanCount, MaterialTheme.colorScheme.tertiary, Modifier.weight(1f))
                     } else {
-                        ImportResultCard("考试", result.examCount, Color(0xFF7C5FE7), Modifier.weight(1f))
+                        ImportResultCard("考试", result.examCount, MaterialTheme.colorScheme.secondary, Modifier.weight(1f))
                     }
                 }
             }
@@ -298,6 +308,8 @@ fun DirectLoginScreen(
             captchaBitmap = uiState.captchaBitmap!!,
             captchaInput = uiState.captchaInput,
             isLoggingIn = uiState.isLoggingIn,
+            isCaptchaRecognizing = uiState.isCaptchaRecognizing,
+            captchaAutoRecognized = uiState.captchaAutoRecognized,
             onCaptchaInputChange = viewModel::updateCaptchaInput,
             onRefresh = viewModel::refreshCaptcha,
             onConfirm = viewModel::submitCaptcha,
@@ -362,7 +374,7 @@ private fun SemesterManagementSection(
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = LoginAccent,
-                contentColor = Color.White,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
                 disabledContainerColor = LoginBorder.copy(alpha = 0.45f),
                 disabledContentColor = LoginSecondary
             ),
@@ -380,7 +392,7 @@ private fun SemesterManagementSection(
         downloadState.lastBulkSummary?.let { summary ->
             Surface(
                 modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-                color = Color(0xFFFAFAF8),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
@@ -395,7 +407,7 @@ private fun SemesterManagementSection(
                                 if (item.status == SemesterDownloadItemStatus.SUCCEEDED) {
                                     if (item.skippedRowCount > 0) "已完成，跳过${item.skippedRowCount}条" else "已完成"
                                 } else "失败",
-                                color = if (item.status == SemesterDownloadItemStatus.SUCCEEDED) Color(0xFF15803D) else Color(0xFFDC2626),
+                                color = if (item.status == SemesterDownloadItemStatus.SUCCEEDED) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error,
                                 fontSize = 12.sp
                             )
                             if (item.status == SemesterDownloadItemStatus.FAILED) {
@@ -446,7 +458,7 @@ private fun SemesterManagementSection(
                         text = {
                             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Text(semester.displayName, modifier = Modifier.weight(1f))
-                                Text(status, color = if (status == "重试") Color(0xFFDC2626) else LoginAccent, fontSize = 12.sp)
+                                Text(status, color = if (status == "重试") MaterialTheme.colorScheme.error else LoginAccent, fontSize = 12.sp)
                             }
                         },
                         onClick = {
@@ -468,14 +480,14 @@ private fun SemesterManagementSection(
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(top = 12.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = LoginAccent,
-                contentColor = Color.White,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
                 disabledContainerColor = LoginBorder.copy(alpha = 0.45f),
                 disabledContentColor = LoginSecondary
             ),
             shape = RoundedCornerShape(12.dp)
         ) {
             if (isDownloading) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.White)
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                 Spacer(modifier = Modifier.width(8.dp))
             }
             Text(actionLabel, fontWeight = FontWeight.SemiBold)
@@ -506,6 +518,8 @@ private fun LoginCaptchaDialog(
     captchaBitmap: android.graphics.Bitmap,
     captchaInput: String,
     isLoggingIn: Boolean,
+    isCaptchaRecognizing: Boolean,
+    captchaAutoRecognized: Boolean,
     onCaptchaInputChange: (String) -> Unit,
     onRefresh: () -> Unit,
     onConfirm: () -> Unit,
@@ -542,6 +556,32 @@ private fun LoginCaptchaDialog(
                     }
                     Text("点击图片刷新", color = LoginSecondary, fontSize = 11.sp)
                 }
+                when {
+                    isCaptchaRecognizing -> {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(12.dp),
+                                color = LoginAccent,
+                                strokeWidth = 1.5.dp
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("正在自动识别验证码…", color = LoginSecondary, fontSize = 11.sp)
+                        }
+                    }
+                    captchaAutoRecognized && captchaInput.isNotBlank() -> {
+                        Text(
+                            "已自动识别，请核对后登录",
+                            color = MaterialTheme.colorScheme.tertiary,
+                            fontSize = 11.sp,
+                            modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -564,9 +604,9 @@ private fun LoginCaptchaDialog(
                 colors = ButtonDefaults.buttonColors(containerColor = LoginAccent)
             ) {
                 if (isLoggingIn) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
                 } else {
-                    Text("确认登录", color = Color.White, fontSize = 14.sp)
+                    Text("确认登录", color = MaterialTheme.colorScheme.onPrimary, fontSize = 14.sp)
                 }
             }
         },
@@ -575,7 +615,7 @@ private fun LoginCaptchaDialog(
                 Text("取消", color = LoginSecondary)
             }
         },
-        containerColor = Color.White,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         shape = RoundedCornerShape(16.dp)
     )
 }

@@ -7,24 +7,23 @@ import org.junit.Test
 
 class ExplicitModalActionsTest {
     @Test
-    fun updateAndNoticeDialogsRequireExplicitCardActions() {
+    fun updateDialogsRequireExplicitCardActions() {
         val source = mainActivitySource()
 
         assertTrue(source.contains("private val EXPLICIT_ACTION_DIALOG_PROPERTIES = DialogProperties("))
         assertTrue(source.contains("dismissOnBackPress = false"))
         assertTrue(source.contains("dismissOnClickOutside = false"))
         assertEquals(
-            5,
+            4,
             Regex("properties = EXPLICIT_ACTION_DIALOG_PROPERTIES").findAll(source).count()
         )
-        assertEquals(5, Regex("""onDismissRequest = \{ \}""").findAll(source).count())
+        assertEquals(4, Regex("""onDismissRequest = \{ \}""").findAll(source).count())
     }
 
     @Test
     fun explicitButtonsKeepTheirCloseAndNavigationCallbacks() {
         val source = mainActivitySource()
 
-        assertTrue(source.contains("TextButton(onClick = onOpenNotices)"))
         assertTrue(source.contains("TextButton(onClick = onDismiss)"))
         assertTrue(source.contains("TextButton(onClick = { startDownload(state.info) })"))
         assertTrue(source.contains("Text(\"取消下载\")"))

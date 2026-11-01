@@ -28,6 +28,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -50,20 +51,30 @@ import com.glut.schedule.data.model.StudyPlanGroup
 import com.glut.schedule.data.model.StudyPlanGroupWithCourses
 import com.glut.schedule.data.model.StudyPlanCourse
 
-private val SPPrimary = Color(0xFF141821)
-private val SPSecondary = Color(0xFF667085)
-private val SPPageBg = Color(0xFFF6F4EF)
-private val SPHeaderBg = Color(0xFF141821)
-private val SPRowBg = Color(0xFFFFFEFB)
-private val SPRowAlt = Color(0xFFF9F7F1)
-private val SPCardBg = Color(0xFFF0EDE5)
-private val SPNeutralGray = Color(0xFF9CA3AF)
-private val SPLegendBg = Color(0xFFEEECE4)
+private val SPPrimary: Color
+    @Composable get() = MaterialTheme.colorScheme.onSurface
+private val SPSecondary: Color
+    @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
+private val SPPageBg: Color
+    @Composable get() = MaterialTheme.colorScheme.background
+private val SPHeaderBg: Color
+    @Composable get() = MaterialTheme.colorScheme.primary
+private val SPRowBg: Color
+    @Composable get() = MaterialTheme.colorScheme.surfaceContainerLow
+private val SPRowAlt: Color
+    @Composable get() = MaterialTheme.colorScheme.surfaceContainer
+private val SPCardBg: Color
+    @Composable get() = MaterialTheme.colorScheme.surfaceContainerHigh
+private val SPNeutralGray: Color
+    @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
+private val SPLegendBg: Color
+    @Composable get() = MaterialTheme.colorScheme.surfaceContainer
 
+@Composable
 private fun attrColor(attribute: String): Color = when (attribute) {
-    "必修" -> Color(0xFF3F7DF6)
-    "限选" -> Color(0xFFD97706)
-    else -> Color(0xFF16A34A)
+    "必修" -> MaterialTheme.colorScheme.primary
+    "限选" -> MaterialTheme.colorScheme.secondary
+    else -> MaterialTheme.colorScheme.tertiary
 }
 
 private fun wrapName(name: String): String {
@@ -88,8 +99,8 @@ fun StudyPlanScreen(
         if (uiState.isRefreshing) {
             LinearProgressIndicator(
                 modifier = Modifier.fillMaxWidth(),
-                color = Color(0xFF3F7DF6),
-                trackColor = Color(0xFF3F7DF6).copy(alpha = 0.12f)
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
             )
         }
         if (uiState.message.isNotBlank()) {
@@ -154,12 +165,12 @@ fun StudyPlanScreen(
                             exit = shrinkVertically() + fadeOut()
                         ) {
                             Column {
-                                HorizontalDivider(color = Color(0xFFD5D0C4), thickness = 1.dp)
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
                                 gwc.courses.forEachIndexed { ci, course ->
                                     CourseRow(course = course, fontSize = detailFs, readOnly = uiState.isReadOnly)
                                     if (ci < gwc.courses.lastIndex) {
                                         HorizontalDivider(
-                                            color = Color(0xFFE8E2D6),
+                                            color = MaterialTheme.colorScheme.outlineVariant,
                                             thickness = 0.5.dp,
                                             modifier = Modifier.padding(start = 32.dp)
                                         )
@@ -170,7 +181,7 @@ fun StudyPlanScreen(
                     }
 
                     if (index < uiState.groupsWithCourses.lastIndex) {
-                        HorizontalDivider(color = Color(0xFFEDE8DE), thickness = 0.5.dp)
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
                     }
                 }
             }
@@ -222,7 +233,7 @@ private fun LegendBar(
                 LegendIconRow(R.drawable.study_course_unknown_pass, "已选课成绩未知", fontSize)
 
                 Spacer(modifier = Modifier.height(6.dp))
-                HorizontalDivider(color = Color(0xFFD5D0C4), thickness = 0.5.dp)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
                 Spacer(modifier = Modifier.height(6.dp))
 
                 Text("课程信息说明：", color = SPPrimary, fontSize = fontSize,
@@ -262,7 +273,7 @@ private fun RowScope.HeaderCell(
     text: String, w: Float, fontSize: androidx.compose.ui.unit.TextUnit,
     align: TextAlign = TextAlign.Center, startPad: Dp = 0.dp
 ) {
-    Text(text, color = Color.White, fontSize = fontSize, fontWeight = FontWeight.SemiBold,
+    Text(text, color = MaterialTheme.colorScheme.onPrimary, fontSize = fontSize, fontWeight = FontWeight.SemiBold,
         textAlign = align, maxLines = 1,
         modifier = Modifier.weight(w).padding(start = startPad, end = 0.dp))
 }

@@ -61,8 +61,8 @@ class HolidayAdjustmentsUiContractTest {
 
         assertTrue(grid.contains("HOLIDAY(\"休\")"))
         assertTrue(grid.contains("ADJUSTMENT(\"调\")"))
-        assertTrue(grid.contains("Color(0xFF2D9A72)"))
-        assertTrue(grid.contains("Color(0xFFE57411)"))
+        assertTrue(grid.contains("colorScheme.primary"))
+        assertTrue(grid.contains("colorScheme.tertiary"))
         // 角标绝对定位在日期格右下角，不能撑高日期栏或改变列宽。
         assertTrue(grid.contains("Alignment.BottomEnd"))
         assertTrue(grid.contains(".width(dayWidth)"))
@@ -94,26 +94,15 @@ class HolidayAdjustmentsUiContractTest {
     }
 
     @Test
-    fun dialogsPinLightContainerColorsInsteadOfInheritingTheDarkTheme() {
+    fun dialogsFollowTheMaterialThemeInsteadOfPinningATheme() {
         val adjustments = page("HolidayAdjustmentsScreen.kt")
         val score = page("ScoreScreen.kt")
 
-        // Material3 的 AlertDialog / DatePicker 默认容器色是 surfaceContainerHigh，而本应用
-        // 主题是 darkColorScheme，其默认值是深灰 #2B2930（黑底白字）。因此凡是不显式传色的
-        // 弹窗都会渲染成黑色 UI —— 这两个页面必须显式指定。
-        // 两个 AlertDialog 各一套三件套（日期选择器的容器色走 colors 对象，见下）。
-        assertEquals(
-            2,
-            Regex("containerColor = PanelBg,\\s*titleContentColor = TextPrimary")
-                .findAll(adjustments).count()
-        )
-        assertTrue(adjustments.contains("colors = pickerColors"))
-        assertTrue(adjustments.contains("titleContentColor = TextPrimary"))
-        assertTrue(adjustments.contains("textContentColor = TextSecondary"))
+        // 主题现在支持浅色 / 深色切换，弹窗不能再把容器色钉死为某一套浅色，
+        // 否则深色模式下会出现白底黑字的割裂界面。日期选择器仍走 DatePickerDefaults.colors。
         assertTrue(adjustments.contains("DatePickerDefaults.colors("))
-        assertTrue(score.contains("containerColor = ScoreCardBg"))
-        assertTrue(score.contains("titleContentColor = ScorePrimary"))
-        assertTrue(score.contains("textContentColor = ScoreSecondary"))
+        assertTrue(adjustments.contains("MaterialTheme.colorScheme"))
+        assertTrue(score.contains("MaterialTheme.colorScheme"))
     }
 
     @Test

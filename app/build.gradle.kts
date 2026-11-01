@@ -32,17 +32,21 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            storeFile = rootProject.file(
-                keystoreProperties.getProperty("storeFile")
-                    ?: error("Missing storeFile in keystore.properties")
-            )
-            storePassword = keystoreProperties.getProperty("storePassword")
-                ?: error("Missing storePassword in keystore.properties")
-            keyAlias = keystoreProperties.getProperty("keyAlias")
-                ?: error("Missing keyAlias in keystore.properties")
-            keyPassword = keystoreProperties.getProperty("keyPassword")
-                ?: error("Missing keyPassword in keystore.properties")
+        // 没有 keystore.properties 时（例如只跑 debug / 单元测试的机器）不创建 release
+        // 签名配置，避免配置阶段直接失败；真正发布时仍会使用该文件签名。
+        if (keystorePropertiesFile.exists()) {
+            create("release") {
+                storeFile = rootProject.file(
+                    keystoreProperties.getProperty("storeFile")
+                        ?: error("Missing storeFile in keystore.properties")
+                )
+                storePassword = keystoreProperties.getProperty("storePassword")
+                    ?: error("Missing storePassword in keystore.properties")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                    ?: error("Missing keyAlias in keystore.properties")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                    ?: error("Missing keyPassword in keystore.properties")
+            }
         }
     }
 
@@ -58,7 +62,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.findByName("release")
             buildConfigField(
                 "String",
                 "SCHEDULE_SHARE_BASE_URL",
@@ -124,6 +128,9 @@ dependencies {
     // 加密安全性——加密算法本身（AES-256 GCM/SIV）与稳定版一致。
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("org.jsoup:jsoup:1.21.2")
+    // 验证码识别使用 PaddleOCR 的 PP-OCRv5 识别模型（ONNX 格式）。
+    // mobile 包只保留标准算子，体积约为 android 完整包的 1/4，足够跑 CNN + CTC 识别模型。
+    implementation("com.microsoft.onnxruntime:onnxruntime-mobile:1.18.0")
 
     ksp("androidx.room:room-compiler:2.8.4")
 

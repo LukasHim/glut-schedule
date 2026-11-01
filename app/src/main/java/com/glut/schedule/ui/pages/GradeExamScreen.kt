@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,17 +31,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.glut.schedule.data.model.GradeExamInfo
 
-private val ScorePrimary = Color(0xFF141821)
-private val ScoreSecondary = Color(0xFF667085)
-private val ScoreAccent = Color(0xFF3F7DF6)
-private val ScorePageBg = Color(0xFFF6F4EF)
-private val ScoreCardBg = Color(0xFFFFFEFB)
-private val ScoreSemesterHeaderBg = Color(0xFF141821)
-
-private val PassGreen = Color(0xFF2D9A72)
-private val FailOrange = Color(0xFFD97706)
-private val StatusBlue = Color(0xFF3F7DF6)
-
 @Composable
 fun GradeExamScreen(
     viewModel: GradeExamViewModel,
@@ -51,20 +41,20 @@ fun GradeExamScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(ScorePageBg)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         if (uiState.isRefreshing) {
             LinearProgressIndicator(
                 modifier = Modifier.fillMaxWidth(),
-                color = ScoreAccent,
-                trackColor = ScoreAccent.copy(alpha = 0.12f)
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
             )
         }
 
         if (uiState.message.isNotBlank()) {
             Text(
                 uiState.message,
-                color = ScoreSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 14.sp,
                 modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp)
             )
@@ -80,7 +70,7 @@ fun GradeExamScreen(
                 Text(
                     if (uiState.hasCookie) "暂无等级考试记录\n请点击刷新按钮获取"
                     else "请先在导入课表页面登录教务系统",
-                    color = ScoreSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 14.sp,
                     textAlign = TextAlign.Center
                 )
@@ -112,8 +102,9 @@ fun GradeExamScreen(
     }
 }
 
+@Composable
 private fun scoreColorFor(exam: GradeExamInfo): Color {
-    val numericScore = exam.score.toDoubleOrNull() ?: return ScoreSecondary
+    val numericScore = exam.score.toDoubleOrNull() ?: return MaterialTheme.colorScheme.onSurfaceVariant
     val isPass = when {
         exam.examName.contains("CET", ignoreCase = true) ||
         exam.examName.contains("大学英语", ignoreCase = true) ||
@@ -125,7 +116,7 @@ private fun scoreColorFor(exam: GradeExamInfo): Color {
         exam.examName.contains("英语六", ignoreCase = true) -> numericScore >= 425
         else -> numericScore >= 60
     }
-    return if (isPass) PassGreen else FailOrange
+    return if (isPass) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error
 }
 
 @Composable
@@ -137,7 +128,7 @@ private fun GradeExamCard(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = ScoreCardBg,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         shape = RoundedCornerShape(10.dp)
     ) {
         Row(
@@ -149,14 +140,14 @@ private fun GradeExamCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     exam.examName,
-                    color = ScorePrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     exam.examTime,
-                    color = ScoreSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 13.sp
                 )
                 if (exam.status.isNotBlank() && exam.status != "已批准") {
@@ -180,11 +171,11 @@ private fun GradeExamCard(
 @Composable
 private fun StatusBadge(status: String) {
     val bgColor = when {
-        status.contains("通过", ignoreCase = true) -> PassGreen
-        status.contains("合格", ignoreCase = true) -> PassGreen
-        status.contains("未通过", ignoreCase = true) -> FailOrange
-        status.contains("不合格", ignoreCase = true) -> FailOrange
-        else -> StatusBlue
+        status.contains("通过", ignoreCase = true) -> MaterialTheme.colorScheme.tertiary
+        status.contains("合格", ignoreCase = true) -> MaterialTheme.colorScheme.tertiary
+        status.contains("未通过", ignoreCase = true) -> MaterialTheme.colorScheme.error
+        status.contains("不合格", ignoreCase = true) -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.primary
     }
 
     Surface(

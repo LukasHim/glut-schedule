@@ -21,6 +21,7 @@ import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -46,16 +47,16 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 
-private val PageBg = Color(0xFFF6F4EF)
-private val PanelBg = Color(0xFFFFFEFB)
-private val TextPrimary = Color(0xFF141821)
-private val TextSecondary = Color(0xFF667085)
-private val DividerColor = Color(0xFFEDE8DE)
-private val Accent = Color(0xFF3F7DF6)
-private val DateChipBg = Color(0xFFF1F5FD)
-private val DateChipText = Color(0xFF2F6FE9)
-private val WarningText = Color(0xFFB45843)
-private val DangerText = Color(0xFFDC2626)
+private val PageBg: Color @Composable get() = MaterialTheme.colorScheme.background
+private val PanelBg: Color @Composable get() = MaterialTheme.colorScheme.surfaceContainerLow
+private val TextPrimary: Color @Composable get() = MaterialTheme.colorScheme.onSurface
+private val TextSecondary: Color @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
+private val DividerColor: Color @Composable get() = MaterialTheme.colorScheme.outlineVariant
+private val Accent: Color @Composable get() = MaterialTheme.colorScheme.primary
+private val DateChipBg: Color @Composable get() = MaterialTheme.colorScheme.surfaceContainerHighest
+private val DateChipText: Color @Composable get() = MaterialTheme.colorScheme.primary
+private val WarningText: Color @Composable get() = MaterialTheme.colorScheme.onSecondaryContainer
+private val DangerText: Color @Composable get() = MaterialTheme.colorScheme.error
 
 /** 日期选择器以 UTC 零点为坐标；与 [LocalDate] 互转时必须固定用 UTC，否则会整体偏一天。 */
 internal fun localDateToUtcMillis(date: LocalDate): Long =
@@ -147,7 +148,7 @@ fun HolidayAdjustmentsScreen(viewModel: HolidayAdjustmentsViewModel) {
                                 modifier = Modifier.weight(1f),
                                 onClick = { pickingField = HolidayAdjustmentField.SOURCE }
                             )
-                            Text("→", color = Color(0xFF98A0AF), fontSize = 18.sp)
+                            Text("→", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 18.sp)
                             DateField(
                                 label = "目标日期",
                                 date = targetDate,
@@ -197,7 +198,7 @@ fun HolidayAdjustmentsScreen(viewModel: HolidayAdjustmentsViewModel) {
                             if (state.rules.isNotEmpty()) {
                                 Text(
                                     "${state.rules.size} 条",
-                                    color = Color(0xFF98A0AF),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 13.sp,
                                     textAlign = TextAlign.End,
                                     modifier = Modifier.weight(1f)
@@ -228,7 +229,7 @@ fun HolidayAdjustmentsScreen(viewModel: HolidayAdjustmentsViewModel) {
                                 Text("已隐藏的卡片", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                                 Text(
                                     "${state.hiddenItems.size} 张",
-                                    color = Color(0xFF98A0AF),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 13.sp,
                                     textAlign = TextAlign.End,
                                     modifier = Modifier.weight(1f)
@@ -247,7 +248,7 @@ fun HolidayAdjustmentsScreen(viewModel: HolidayAdjustmentsViewModel) {
                                 onClick = viewModel::restoreAllHiddenCards,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("全部恢复", color = Color(0xFF3F7DF6), fontSize = 15.sp)
+                                Text("全部恢复", color = MaterialTheme.colorScheme.primary, fontSize = 15.sp)
                             }
                         }
                     }
@@ -377,7 +378,7 @@ private fun HiddenCardRow(
         }
         Text(
             text = "恢复",
-            color = Color(0xFF3F7DF6),
+            color = MaterialTheme.colorScheme.primary,
             fontSize = 14.sp,
             modifier = Modifier.clickable(onClick = onRestore)
         )
@@ -393,7 +394,7 @@ private fun RuleRow(row: ManualDayCopyRow, onDelete: () -> Unit) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 "${row.rule.sourceDate} → ${row.rule.targetDate}",
-                color = Color(0xFF202633),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold
             )
@@ -469,11 +470,11 @@ private fun holidayAdjustmentDatePickerColors() = DatePickerDefaults.colors(
     navigationContentColor = TextPrimary,
     yearContentColor = TextPrimary,
     currentYearContentColor = Accent,
-    selectedYearContentColor = Color.White,
+    selectedYearContentColor = MaterialTheme.colorScheme.onPrimary,
     selectedYearContainerColor = Accent,
     dayContentColor = TextPrimary,
     selectedDayContainerColor = Accent,
-    selectedDayContentColor = Color.White,
+    selectedDayContentColor = MaterialTheme.colorScheme.onPrimary,
     todayContentColor = Accent,
     todayDateBorderColor = Accent,
     dividerColor = DividerColor

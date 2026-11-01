@@ -32,11 +32,11 @@ import com.glut.schedule.service.parser.GradeExamParser
 import com.glut.schedule.service.parser.FitnessParser
 import com.glut.schedule.service.parser.StudyPlanParser
 import com.glut.schedule.service.AppUpdater
-import com.glut.schedule.service.NoticeChecker
 import com.glut.schedule.service.UpdateChecker
-import com.glut.schedule.service.greeting.GreetingTemplateRepository
-import com.glut.schedule.service.greeting.HttpGreetingTemplateRemote
 import com.glut.schedule.service.holiday.TimorHolidayClient
+import com.glut.schedule.service.ocr.PaddleCaptchaOcr
+import com.glut.schedule.service.reminder.ClassReminderNotifier
+import com.glut.schedule.service.reminder.ClassReminderScheduler
 import com.glut.schedule.partner.PartnerScheduleApiService
 import com.glut.schedule.partner.PartnerScheduleStore
 import com.glut.schedule.ui.components.ScheduleBackgroundStore
@@ -47,6 +47,7 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -72,6 +73,10 @@ class ScheduleApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         appContainer = AppContainer(this, applicationScope)
+        ClassReminderNotifier.ensureChannel(this)
+        applicationScope.launch {
+            appContainer.classReminderScheduler.refresh()
+        }
         applicationScope.launch {
             val migrationFlags = getSharedPreferences("schedule_migration_flags", MODE_PRIVATE)
             try {
@@ -102,7 +107,13 @@ class ScheduleApplication : Application() {
             }
         }
         applicationScope.launch {
-            appContainer.greetingTemplateRepository.initializeAndRefresh()
+            // 提醒开关或提前分钟数变化后立即重排；首次启动的 refresh 已在上面触发。
+            combine(
+                appContainer.settingsStore.classReminderEnabled,
+                appContainer.settingsStore.classReminderMinutes
+            ) { enabled, minutes -> enabled to minutes }
+                .distinctUntilChanged()
+                .collect { appContainer.classReminderScheduler.refresh() }
         }
         observeWidgetDataChanges()
     }
@@ -127,7 +138,11 @@ class ScheduleApplication : Application() {
             ) { courses, periods, semesterStart, semesterEnd, manualDayCopies ->
                 listOf(courses, periods, semesterStart, semesterEnd, manualDayCopies)
             }.debounce(500)
-                .collect { ScheduleWidgetUpdater.updateAll(this@ScheduleApplication) }
+                .collect {
+                    ScheduleWidgetUpdater.updateAll(this@ScheduleApplication)
+                    // 课表/作息/调休变化后重排上课提醒，避免仍按旧课表提醒。
+                    appContainer.classReminderScheduler.refresh()
+                }
         }
     }
 }
@@ -149,10 +164,7 @@ class AppContainer(application: Application, applicationScope: CoroutineScope) {
      .build()
 
     val settingsStore = ScheduleSettingsStore(application)
-    val greetingTemplateRepository = GreetingTemplateRepository(
-        cache = settingsStore,
-        remote = HttpGreetingTemplateRemote()
-    )
+    val classReminderScheduler = ClassReminderScheduler(application)
     val scheduleRepository = ScheduleRepository(
         database.scheduleDao(),
         settingsStore.campusType,
@@ -258,6 +270,8 @@ class AppContainer(application: Application, applicationScope: CoroutineScope) {
     val fitnessStore = FitnessStore(application)
     val fitnessApiService = FitnessApiService()
     val fitnessParser = FitnessParser()
+    /** 验证码图片只在本机推理，不经过任何第三方 OCR 接口。 */
+    val captchaOcr = PaddleCaptchaOcr(application)
     val financeStore by lazy { FinanceStore(application) }
     private val financeParser by lazy { FinanceParser() }
     val financeApiService by lazy { FinanceApiService(financeParser) }
@@ -268,7 +282,6 @@ class AppContainer(application: Application, applicationScope: CoroutineScope) {
     val gradeExamParser = GradeExamParser()
     val studyPlanParser = StudyPlanParser()
     val updateChecker = UpdateChecker()
-    val noticeChecker = NoticeChecker()
     val appUpdater = AppUpdater(application)
     val partnerScheduleStore = PartnerScheduleStore(application)
     val partnerScheduleApiService = PartnerScheduleApiService()

@@ -40,6 +40,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -87,15 +88,24 @@ import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private val FinancePrimary = Color(0xFF244F46)
-private val FinancePrimaryLight = Color(0xFF397267)
-private val FinanceAmount = Color(0xFFBD573E)
-private val FinancePageBg = Color(0xFFF5F1E9)
-private val FinanceCard = Color(0xFFFFFEFB)
-private val FinanceMuted = Color(0xFF737B78)
-private val FinanceBorder = Color(0xFFE7E1D7)
-private val CreditHeaderBg = Color(0xFFE7EEF8)
-private val CreditSectionBg = Color(0xFFE5ECE8)
+private val FinancePrimary: Color
+    @Composable get() = MaterialTheme.colorScheme.primary
+private val FinancePrimaryLight: Color
+    @Composable get() = MaterialTheme.colorScheme.secondary
+private val FinanceAmount: Color
+    @Composable get() = MaterialTheme.colorScheme.tertiary
+private val FinancePageBg: Color
+    @Composable get() = MaterialTheme.colorScheme.background
+private val FinanceCard: Color
+    @Composable get() = MaterialTheme.colorScheme.surfaceContainerLow
+private val FinanceMuted: Color
+    @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
+private val FinanceBorder: Color
+    @Composable get() = MaterialTheme.colorScheme.outlineVariant
+private val CreditHeaderBg: Color
+    @Composable get() = MaterialTheme.colorScheme.surfaceContainerHigh
+private val CreditSectionBg: Color
+    @Composable get() = MaterialTheme.colorScheme.secondaryContainer
 private val CREDIT_INDEX_WIDTH = 48.dp
 private val CREDIT_SECTION_GAP = 18.dp
 private const val FINANCE_HOME_URL = "https://cwjf.glut.edu.cn/home/login"
@@ -181,7 +191,7 @@ private fun FinanceTabs(selected: FinanceGroup, onSelect: (FinanceGroup) -> Unit
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Text(group.label, fontSize = 15.sp, color = if (selected == group) FinancePrimary else Color(0xFF303432), fontWeight = if (selected == group) FontWeight.Bold else FontWeight.Normal)
+                Text(group.label, fontSize = 15.sp, color = if (selected == group) FinancePrimary else MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = if (selected == group) FontWeight.Bold else FontWeight.Normal)
                 Spacer(Modifier.height(1.dp))
                 Box(Modifier.height(2.dp).width(32.dp).background(if (selected == group) FinancePrimary else Color.Transparent))
             }
@@ -218,8 +228,8 @@ private fun SummaryCard(value: FinanceOverview, moneyVisible: Boolean) {
         Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
             .background(Brush.linearGradient(listOf(FinancePrimary, FinancePrimaryLight))).padding(22.dp)
     ) {
-        Text("当前欠费", color = Color.White.copy(alpha = .75f), fontSize = 14.sp)
-        Text("¥ ${financeMoneyText(value.summary.outstandingTotal, moneyVisible)}", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 3.dp, bottom = 20.dp))
+        Text("当前欠费", color = MaterialTheme.colorScheme.onPrimary.copy(alpha = .75f), fontSize = 14.sp)
+        Text("¥ ${financeMoneyText(value.summary.outstandingTotal, moneyVisible)}", color = MaterialTheme.colorScheme.onPrimary, fontSize = 36.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 3.dp, bottom = 20.dp))
         Row(Modifier.fillMaxWidth()) {
             SummaryMetric("应收合计", value.summary.receivableTotal, moneyVisible, Modifier.weight(1f))
             SummaryMetric("已缴合计", value.summary.paidTotal, moneyVisible, Modifier.weight(1f))
@@ -228,16 +238,16 @@ private fun SummaryCard(value: FinanceOverview, moneyVisible: Boolean) {
         Row(Modifier.fillMaxWidth()) {
             SummaryMetric("缓缴金额", value.summary.deferredAmount, moneyVisible, Modifier.weight(1f))
             Column(Modifier.weight(1f)) {
-                Text("待缴项目", color = Color.White.copy(alpha = .7f), fontSize = 12.sp)
-                Text("${value.pendingItems.size} 项", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text("待缴项目", color = MaterialTheme.colorScheme.onPrimary.copy(alpha = .7f), fontSize = 12.sp)
+                Text("${value.pendingItems.size} 项", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }
         }
     }
 }
 
 @Composable private fun SummaryMetric(label: String, value: String, moneyVisible: Boolean, modifier: Modifier) = Column(modifier) {
-    Text(label, color = Color.White.copy(alpha = .7f), fontSize = 12.sp)
-    Text("¥ ${financeMoneyText(value, moneyVisible)}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+    Text(label, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = .7f), fontSize = 12.sp)
+    Text("¥ ${financeMoneyText(value, moneyVisible)}", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
 }
 
 @Composable
@@ -270,11 +280,11 @@ private fun ModuleContent(
                 Surface(
                     modifier = Modifier.clickable { onSelect(module) }, shape = RoundedCornerShape(18.dp),
                     color = if (state.module == module) FinancePrimary else FinanceCard
-                ) { Text(module.label, color = if (state.module == module) Color.White else FinanceMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 13.dp, vertical = 9.dp)) }
+                ) { Text(module.label, color = if (state.module == module) MaterialTheme.colorScheme.onPrimary else FinanceMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 13.dp, vertical = 9.dp)) }
             }
         }
         if (state.group == FinanceGroup.PAYMENT) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFFE5ECE8)).padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.secondaryContainer).padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) { Text("自助缴费", fontWeight = FontWeight.Bold); Text("查询只读，支付请前往学校官网", color = FinanceMuted, fontSize = 11.sp) }
                 TextButton(onClick = onOpenWebsite) { Text("打开官网", color = FinancePrimary) }
             }
@@ -415,7 +425,7 @@ private fun DetailSheet(item: FinanceItem, ticketImage: String, moneyVisible: Bo
     Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 10.dp)) {
         Text(item.name, fontWeight = FontWeight.Bold, fontSize = 20.sp)
         if (item.secondary.isNotBlank()) Text(item.secondary, color = FinanceMuted, modifier = Modifier.padding(top = 5.dp, bottom = 14.dp))
-        item.details.forEach { field -> Row(Modifier.fillMaxWidth().padding(vertical = 7.dp)) { Text(field.label, color = FinanceMuted, modifier = Modifier.weight(1f)); Text(if (isFinanceMoneyLabel(field.label)) financeMoneyText(field.value, moneyVisible) else field.value, color = if (field.highlight) FinanceAmount else Color(0xFF202523), fontWeight = FontWeight.Medium) } }
+        item.details.forEach { field -> Row(Modifier.fillMaxWidth().padding(vertical = 7.dp)) { Text(field.label, color = FinanceMuted, modifier = Modifier.weight(1f)); Text(if (isFinanceMoneyLabel(field.label)) financeMoneyText(field.value, moneyVisible) else field.value, color = if (field.highlight) FinanceAmount else MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium) } }
         if (item.canPreview && !moneyVisible) {
             Text("显示金额后可查看电子票据", color = FinanceMuted, modifier = Modifier.padding(top = 12.dp))
         } else {
@@ -452,7 +462,7 @@ private fun FinanceLoginDialog(
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("登录财务平台", color = Color(0xFF141821), fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 2.dp))
+                Text("登录财务平台", color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 2.dp))
                 OutlinedTextField(
                     value = login.username,
                     onValueChange = onUsername,
@@ -501,7 +511,7 @@ private fun FinanceLoginDialog(
                         Surface(
                             modifier = Modifier.size(124.dp, 56.dp).clickable(enabled = !state.isRefreshing, onClick = onRefreshCaptcha),
                             shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFFF0F2F1),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
                             border = androidx.compose.foundation.BorderStroke(1.dp, FinanceBorder)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -510,7 +520,7 @@ private fun FinanceLoginDialog(
                         }
                     }
                 }
-                if (login.error.isNotBlank()) Text(login.error, color = FinanceAmount, fontSize = 12.sp)
+                if (login.error.isNotBlank()) Text(login.error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                 Text("点击验证码图片可刷新；密码使用系统密钥加密，仅保存在本机。", color = FinanceMuted, fontSize = 11.sp)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = onDismiss) { Text("取消", color = FinanceMuted) }
@@ -525,12 +535,12 @@ private fun FinanceLoginDialog(
 
 @Composable
 private fun financeTextFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedTextColor = Color(0xFF141821),
-    unfocusedTextColor = Color(0xFF141821),
-    disabledTextColor = Color(0xFF737B78),
+    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+    disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
     cursorColor = FinancePrimary,
     focusedBorderColor = FinancePrimary,
-    unfocusedBorderColor = Color(0xFFD8DDE6),
+    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
     focusedPlaceholderColor = FinanceMuted,
     unfocusedPlaceholderColor = FinanceMuted,
     focusedContainerColor = Color.Transparent,
@@ -547,7 +557,7 @@ private fun financeTextFieldColors() = OutlinedTextFieldDefaults.colors(
 @Composable private fun UnsupportedFinance(modifier: Modifier) = EmptyFinance("南宁校区暂未开放", "当前财务查询仅支持桂林校区。入口已保留，后续接入时无需迁移页面。", null, modifier)
 @Composable private fun EmptyCard(text: String) = Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), color = FinanceCard) { Text(text, color = FinanceMuted, textAlign = TextAlign.Center, modifier = Modifier.padding(28.dp)) }
 @Composable private fun MetricCard(label: String, value: String, moneyVisible: Boolean, modifier: Modifier) = Surface(modifier, shape = RoundedCornerShape(16.dp), color = FinanceCard) { Column(Modifier.padding(15.dp)) { Text(label, color = FinanceMuted, fontSize = 12.sp); Text("¥ ${financeMoneyText(value, moneyVisible)}", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 5.dp)) } }
-@Composable private fun FieldGrid(fields: List<FinanceField>, moneyVisible: Boolean, modifier: Modifier) = Column(modifier) { fields.chunked(2).forEach { row -> Row(Modifier.fillMaxWidth()) { row.forEach { field -> Column(Modifier.weight(1f).padding(vertical = 4.dp)) { Text(field.label, color = FinanceMuted, fontSize = 10.sp); Text("¥${financeMoneyText(field.value, moneyVisible)}", color = if (field.highlight) FinanceAmount else Color(0xFF303432), fontSize = 12.sp, fontWeight = FontWeight.Medium) } }; if (row.size == 1) Spacer(Modifier.weight(1f)) } } }
+@Composable private fun FieldGrid(fields: List<FinanceField>, moneyVisible: Boolean, modifier: Modifier) = Column(modifier) { fields.chunked(2).forEach { row -> Row(Modifier.fillMaxWidth()) { row.forEach { field -> Column(Modifier.weight(1f).padding(vertical = 4.dp)) { Text(field.label, color = FinanceMuted, fontSize = 10.sp); Text("¥${financeMoneyText(field.value, moneyVisible)}", color = if (field.highlight) FinanceAmount else MaterialTheme.colorScheme.onSurface, fontSize = 12.sp, fontWeight = FontWeight.Medium) } }; if (row.size == 1) Spacer(Modifier.weight(1f)) } } }
 
 @Composable private fun SecureFinanceWindow() { val context = LocalContext.current; DisposableEffect(context) { val activity = context.findActivity(); activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE); onDispose { activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) } } }
 private tailrec fun Context.findActivity(): Activity? = when (this) { is Activity -> this; is ContextWrapper -> baseContext.findActivity(); else -> null }

@@ -23,6 +23,7 @@ import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -42,16 +43,6 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-// 乳白菜单配色：与导入页下拉（DirectLoginScreen 的 LoginCardBg / LoginPrimary）同值。
-// 那几个常量在那边是文件私有的，而本仓库的惯例本就是各文件自带同值常量
-//（StatsCardBg、WidgetCard、SegmentedPill.DefaultActiveBackground 皆如此），
-// 所以这里同样声明一份，不为此去新建主题层——那会波及 20+ 处已经用上乳白的页面。
-private val MenuCardBg = Color(0xFFFFFEFB)
-private val MenuTextPrimary = Color(0xFF141821)
-private val MenuTextSecondary = Color(0xFF667085)
-private val MenuAccent = Color(0xFF3F7DF6)
-private val MenuDivider = Color(0xFFE5E7EB)
-
 /** 「正在查看」标签文案，单独提出来供渲染分支与测试共用，避免两处各写一份字面量。 */
 internal const val SEMESTER_MENU_STATUS_VIEWING = "正在查看"
 
@@ -70,6 +61,13 @@ internal fun semesterMenuStatusText(
     else -> "已缓存"
 }
 
+/**
+ * 课表页头部。
+ *
+ * 课表页有两种底色：开启背景图时是任意图片（文字必须固定为白色并加投影），
+ * 关闭背景后是 MD3 主题背景（文字必须用 onSurface/onSurfaceVariant，才能在
+ * 浅色与深色主题下都读得清）。[useSurfaceColors] 就是这两种模式的开关。
+ */
 @Composable
 fun ScheduleHeader(
     week: ScheduleWeek,
@@ -85,8 +83,17 @@ fun ScheduleHeader(
     onReturnToCurrentClick: () -> Unit,
     onDrawerOpen: () -> Unit = {},
     isRefreshing: Boolean = false,
+    useSurfaceColors: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val colorScheme = MaterialTheme.colorScheme
+    val primaryContent = if (useSurfaceColors) colorScheme.onSurface else Color.White
+    val secondaryContent = if (useSurfaceColors) {
+        colorScheme.onSurfaceVariant
+    } else {
+        Color.White.copy(alpha = 0.72f)
+    }
+    val iconColors = IconButtonDefaults.iconButtonColors(contentColor = primaryContent)
     var semesterMenuExpanded by remember { mutableStateOf(false) }
     val formatter = DateTimeFormatter.ofPattern("yyyy/M/d")
     val dayLabel = today.dayLabel()
@@ -99,7 +106,7 @@ fun ScheduleHeader(
             IconButton(
                 onClick = onDrawerOpen,
                 modifier = Modifier.size(48.dp),
-                colors = IconButtonDefaults.iconButtonColors(contentColor = Color.White)
+                colors = iconColors
             ) {
                 Icon(Icons.Outlined.Menu, contentDescription = "菜单", modifier = Modifier.size(22.dp))
             }
@@ -124,13 +131,13 @@ fun ScheduleHeader(
                         dayLabel,
                         isHistorical
                     ),
-                    color = Color.White,
+                    color = primaryContent,
                     fontSize = 21.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = today.format(formatter),
-                    color = Color.White,
+                    color = secondaryContent,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium
                 )
@@ -144,20 +151,20 @@ fun ScheduleHeader(
             ) {
                 Text(
                     "▾",
-                    color = Color.White,
+                    color = primaryContent,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
                 DropdownMenu(
                     expanded = semesterMenuExpanded,
                     onDismissRequest = { semesterMenuExpanded = false },
-                    containerColor = MenuCardBg
+                    containerColor = colorScheme.surfaceContainerHigh
                 ) {
                     semesters
                         .filter { it.isCurrent || it.cacheStatus == SemesterCacheStatus.CACHED }
                         .forEach { semester ->
                             val statusText = semesterMenuStatusText(semester, viewedSemesterId)
-                            // 正在查看的那一行用强调色，其余用次文字色——否则在乳白底上
+                            // 正在查看的那一行用主色，其余用次文字色——否则在浅底上
                             //「已缓存」会和课程名抢注意力，看不出哪一行是「你现在正在看的」。
                             val isViewing = statusText == SEMESTER_MENU_STATUS_VIEWING
                             DropdownMenuItem(
@@ -168,21 +175,27 @@ fun ScheduleHeader(
                                         Text(
                                             statusText,
                                             fontSize = 12.sp,
-                                            color = if (isViewing) MenuAccent else MenuTextSecondary
+                                            color = if (isViewing) {
+                                                colorScheme.primary
+                                            } else {
+                                                colorScheme.onSurfaceVariant
+                                            }
                                         )
                                     }
                                 },
-                                colors = MenuDefaults.itemColors(textColor = MenuTextPrimary),
+                                colors = MenuDefaults.itemColors(
+                                    textColor = colorScheme.onSurface
+                                ),
                                 onClick = {
                                     semesterMenuExpanded = false
                                     onSemesterSelected(semester.id)
                                 }
                             )
                         }
-                    HorizontalDivider(color = MenuDivider)
+                    HorizontalDivider(color = colorScheme.outlineVariant)
                     DropdownMenuItem(
                         text = { Text("管理与下载其他学期") },
-                        colors = MenuDefaults.itemColors(textColor = MenuTextPrimary),
+                        colors = MenuDefaults.itemColors(textColor = colorScheme.onSurface),
                         onClick = {
                             semesterMenuExpanded = false
                             onManageSemesters()
@@ -195,7 +208,7 @@ fun ScheduleHeader(
                 IconButton(
                     onClick = onReturnToCurrentClick,
                     modifier = Modifier.size(48.dp),
-                    colors = IconButtonDefaults.iconButtonColors(contentColor = Color.White)
+                    colors = iconColors
                 ) {
                     Icon(
                         Icons.AutoMirrored.Outlined.ArrowBack,
@@ -208,13 +221,13 @@ fun ScheduleHeader(
                     onClick = onRefreshClick,
                     enabled = !isRefreshing,
                     modifier = Modifier.size(48.dp),
-                    colors = IconButtonDefaults.iconButtonColors(contentColor = Color.White)
+                    colors = iconColors
                 ) {
                     if (isRefreshing) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(19.dp),
                             strokeWidth = 2.dp,
-                            color = Color.White
+                            color = primaryContent
                         )
                     } else {
                         Icon(Icons.Outlined.Refresh, contentDescription = "刷新课表", modifier = Modifier.size(21.dp))

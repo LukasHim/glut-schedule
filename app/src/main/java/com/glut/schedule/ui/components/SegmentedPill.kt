@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,15 +18,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
-/** 选中态的默认强调色，与导入页、上课时间页保持一致。 */
-private val DefaultAccent = Color(0xFF3F7DF6)
-private val DefaultUnselectedText = Color(0xFF667085)
-private val DefaultBorder = Color(0xFFDDE2EA)
-
-/** 分段控件的轨道底色与选中块底色，取自小程序导入页的视觉。 */
-private val DefaultTrack = Color(0xFFE8E5DE)
-private val DefaultActiveBackground = Color(0xFFFFFEFB)
 
 /**
  * 二选一按钮（Pill 风格，选中时整块填充强调色）。
@@ -39,10 +31,10 @@ fun SegmentedPill(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    accent: Color = DefaultAccent,
-    selectedTextColor: Color = Color.White,
-    unselectedTextColor: Color = DefaultUnselectedText,
-    borderColor: Color = DefaultBorder
+    accent: Color = MaterialTheme.colorScheme.primary,
+    selectedTextColor: Color = MaterialTheme.colorScheme.onPrimary,
+    unselectedTextColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    borderColor: Color = MaterialTheme.colorScheme.outlineVariant
 ) {
     Surface(
         modifier = modifier.clickable(onClick = onClick),
@@ -69,7 +61,7 @@ fun SegmentedPill(
  * 与它上面的「南宁分校」行同构）。铺满整行时两块等宽的实心色块视觉重量过大，
  * 和旁边的开关行不成比例。
  *
- * 视觉参考微信小程序导入页：轨道 #E8E5DE，选中块 #FFFEFB 底 + #2F6FE9 字。
+ * 轨道与选中块使用 MD3 的 surfaceContainerHighest / surface，随深浅主题自适应。
  * [selectedIndex] 越界时不选中任何一项。
  */
 @Composable
@@ -78,9 +70,9 @@ fun SegmentedPillRow(
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    accent: Color = DefaultAccent,
-    trackColor: Color = DefaultTrack,
-    activeBackground: Color = DefaultActiveBackground
+    accent: Color = MaterialTheme.colorScheme.primary,
+    trackColor: Color = MaterialTheme.colorScheme.surfaceContainerHighest,
+    activeBackground: Color = MaterialTheme.colorScheme.surface
 ) {
     Row(
         modifier = modifier
@@ -98,7 +90,7 @@ fun SegmentedPillRow(
             ) {
                 Text(
                     text = label,
-                    color = if (selected) accent else DefaultUnselectedText,
+                    color = if (selected) accent else MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 13.sp,
                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),

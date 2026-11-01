@@ -5,7 +5,6 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
-import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -30,14 +29,11 @@ import com.glut.schedule.data.model.SemesterSeason
 import com.glut.schedule.data.model.clampAcademicWeek
 import com.glut.schedule.data.model.normalizeSemesterStartMonday
 import com.glut.schedule.data.model.validateClassPeriods
-import com.glut.schedule.service.greeting.GreetingTemplateCache
-import com.glut.schedule.service.greeting.GreetingTemplateCacheSnapshot
 import com.glut.schedule.service.holiday.encodeHolidayYearCache
 import com.glut.schedule.service.holiday.holidayYearCache
 import com.glut.schedule.service.holiday.isUsableHolidayYearPayload
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 
@@ -98,7 +94,7 @@ private val Context.scheduleSettings by preferencesDataStore(name = "schedule_se
 
 class ScheduleSettingsStore(
     private val context: Context
-) : GreetingTemplateCache {
+) {
     private val currentWeekKey = intPreferencesKey("current_week")
     private val showWeekendKey = booleanPreferencesKey("show_weekend")
     private val showNoonKey = booleanPreferencesKey("show_noon")
@@ -130,9 +126,6 @@ class ScheduleSettingsStore(
     private val lastImportSourceKey = stringPreferencesKey("last_import_source")
     private val updateAvailableVersionKey = stringPreferencesKey("update_available_version")
     private val dismissedUpdatePopupVersionKey = stringPreferencesKey("dismissed_update_popup_version")
-    private val cachedNoticesJsonKey = stringPreferencesKey("cached_notices_json")
-    private val readNoticeIdsKey = stringSetPreferencesKey("read_notice_ids")
-    private val dismissedNoticePopupIdsKey = stringSetPreferencesKey("dismissed_notice_popup_ids")
     private val holidaysCacheKey = stringPreferencesKey("holidays_cache")
     private val holidaysCacheDateKey = stringPreferencesKey("holidays_cache_date")
     private val holidaysCacheYearsKey = stringPreferencesKey("holidays_cache_years")
@@ -142,10 +135,20 @@ class ScheduleSettingsStore(
     private val confirmedEnrollmentYearKey = intPreferencesKey("confirmed_enrollment_year")
     private val confirmedEnrollmentSeasonKey = stringPreferencesKey("confirmed_enrollment_season")
     private val guilinSubCampusKey = stringPreferencesKey("guilin_sub_campus")
-    private val greetingEnabledKey = booleanPreferencesKey("drawer_greeting_enabled")
-    private val greetingTemplatesJsonKey = stringPreferencesKey("greeting_templates_json")
-    private val greetingTemplatesSuccessAtKey = longPreferencesKey("greeting_templates_success_at")
-    private val greetingTemplatesAttemptAtKey = longPreferencesKey("greeting_templates_attempt_at")
+    /** 主题模式：跟随系统 / 浅色 / 深色。 */
+    private val themeModeKey = stringPreferencesKey("theme_mode")
+    /** 动态取色开关；默认关闭，保证默认观感是黄色主题。 */
+    private val dynamicColorEnabledKey = booleanPreferencesKey("dynamic_color_enabled")
+    /**
+     * 是否在课表页绘制背景（自定义图或内置画作）。
+     *
+     * 没有显式值时沿用历史行为：**配置过自定义背景**的老用户继续看到背景，
+     * 其余用户（包括全新安装）默认使用普通页面主题背景。
+     */
+    private val showScheduleBackgroundKey = booleanPreferencesKey("show_schedule_background")
+    /** 上课提醒开关与提前分钟数。 */
+    private val classReminderEnabledKey = booleanPreferencesKey("class_reminder_enabled")
+    private val classReminderMinutesKey = intPreferencesKey("class_reminder_minutes")
 
     val currentWeekNumber: Flow<Int> = context.scheduleSettings.data.map { preferences ->
         clampAcademicWeek(preferences[currentWeekKey] ?: 9)
@@ -277,9 +280,57 @@ class ScheduleSettingsStore(
         preferences[guilinSubCampusKey] ?: GUILIN_SUB_CAMPUS_DEFAULT
     }.distinctUntilChanged()
 
-    val greetingEnabled: Flow<Boolean> = context.scheduleSettings.data.map { preferences ->
-        greetingEnabledFromStored(preferences[greetingEnabledKey])
+    val themeMode: Flow<ThemeMode> = context.scheduleSettings.data.map { preferences ->
+        ThemeMode.fromStorageValue(preferences[themeModeKey])
     }.distinctUntilChanged()
+
+    val dynamicColorEnabled: Flow<Boolean> = context.scheduleSettings.data.map { preferences ->
+        preferences[dynamicColorEnabledKey] ?: false
+    }.distinctUntilChanged()
+
+    val showScheduleBackground: Flow<Boolean> = context.scheduleSettings.data.map { preferences ->
+        preferences[showScheduleBackgroundKey]
+            ?: preferences[customBackgroundUriKey].orEmpty().isNotBlank()
+    }.distinctUntilChanged()
+
+    val classReminderEnabled: Flow<Boolean> = context.scheduleSettings.data.map { preferences ->
+        preferences[classReminderEnabledKey] ?: false
+    }.distinctUntilChanged()
+
+    val classReminderMinutes: Flow<Int> = context.scheduleSettings.data.map { preferences ->
+        sanitizeReminderMinutes(preferences[classReminderMinutesKey] ?: DEFAULT_REMINDER_MINUTES)
+    }.distinctUntilChanged()
+
+    suspend fun setThemeMode(mode: ThemeMode) {
+        context.scheduleSettings.edit { preferences ->
+            if (mode == ThemeMode.SYSTEM) preferences.remove(themeModeKey)
+            else preferences[themeModeKey] = mode.storageValue
+        }
+    }
+
+    suspend fun setDynamicColorEnabled(enabled: Boolean) {
+        context.scheduleSettings.edit { preferences ->
+            preferences[dynamicColorEnabledKey] = enabled
+        }
+    }
+
+    suspend fun setShowScheduleBackground(enabled: Boolean) {
+        context.scheduleSettings.edit { preferences ->
+            preferences[showScheduleBackgroundKey] = enabled
+        }
+    }
+
+    suspend fun setClassReminderEnabled(enabled: Boolean) {
+        context.scheduleSettings.edit { preferences ->
+            preferences[classReminderEnabledKey] = enabled
+        }
+    }
+
+    suspend fun setClassReminderMinutes(minutes: Int) {
+        context.scheduleSettings.edit { preferences ->
+            preferences[classReminderMinutesKey] = sanitizeReminderMinutes(minutes)
+        }
+    }
 
     suspend fun setGuilinSubCampus(subCampus: String) {
         context.scheduleSettings.edit { preferences ->
@@ -493,12 +544,6 @@ class ScheduleSettingsStore(
         return true
     }
 
-    suspend fun setGreetingEnabled(enabled: Boolean) {
-        context.scheduleSettings.edit { preferences ->
-            preferences[greetingEnabledKey] = enabled
-        }
-    }
-
     suspend fun setClassPeriods(profile: ClassPeriodProfile, periods: List<ClassPeriod>): Boolean {
         if (!com.glut.schedule.data.model.validateClassPeriods(profile, periods)) return false
         context.scheduleSettings.edit { preferences ->
@@ -530,44 +575,6 @@ class ScheduleSettingsStore(
         if (version.isBlank()) return
         context.scheduleSettings.edit { preferences ->
             preferences[dismissedUpdatePopupVersionKey] = version
-        }
-    }
-
-    // ---- App notices ----
-
-    val cachedNoticesJson: Flow<String> = context.scheduleSettings.data.map { preferences ->
-        preferences[cachedNoticesJsonKey].orEmpty()
-    }
-
-    val readNoticeIds: Flow<Set<String>> = context.scheduleSettings.data.map { preferences ->
-        preferences[readNoticeIdsKey].orEmpty()
-    }
-
-    val dismissedNoticePopupIds: Flow<Set<String>> = context.scheduleSettings.data.map { preferences ->
-        preferences[dismissedNoticePopupIdsKey].orEmpty()
-    }
-
-    suspend fun setCachedNoticesJson(json: String) {
-        context.scheduleSettings.edit { preferences ->
-            if (json.isBlank()) {
-                preferences.remove(cachedNoticesJsonKey)
-            } else {
-                preferences[cachedNoticesJsonKey] = json
-            }
-        }
-    }
-
-    suspend fun markNoticesRead(ids: Set<String>) {
-        if (ids.isEmpty()) return
-        context.scheduleSettings.edit { preferences ->
-            preferences[readNoticeIdsKey] = preferences[readNoticeIdsKey].orEmpty() + ids
-        }
-    }
-
-    suspend fun markNoticePopupsDismissed(ids: Set<String>) {
-        if (ids.isEmpty()) return
-        context.scheduleSettings.edit { preferences ->
-            preferences[dismissedNoticePopupIdsKey] = preferences[dismissedNoticePopupIdsKey].orEmpty() + ids
         }
     }
 
@@ -692,29 +699,6 @@ class ScheduleSettingsStore(
         CampusType.GRADUATE -> graduateClassPeriodsKey
     }
 
-    override suspend fun read(): GreetingTemplateCacheSnapshot {
-        val preferences = context.scheduleSettings.data.first()
-        return GreetingTemplateCacheSnapshot(
-            rawJson = preferences[greetingTemplatesJsonKey].orEmpty(),
-            lastSuccessEpochMillis = preferences[greetingTemplatesSuccessAtKey] ?: 0L,
-            lastAttemptEpochMillis = preferences[greetingTemplatesAttemptAtKey] ?: 0L
-        )
-    }
-
-    override suspend fun recordAttempt(nowEpochMillis: Long) {
-        context.scheduleSettings.edit { preferences ->
-            preferences[greetingTemplatesAttemptAtKey] = nowEpochMillis
-        }
-    }
-
-    override suspend fun saveSuccess(rawJson: String, nowEpochMillis: Long) {
-        context.scheduleSettings.edit { preferences ->
-            preferences[greetingTemplatesJsonKey] = rawJson
-            preferences[greetingTemplatesSuccessAtKey] = nowEpochMillis
-            preferences[greetingTemplatesAttemptAtKey] = nowEpochMillis
-        }
-    }
-
     private fun classPeriodsKey(profile: ClassPeriodProfile) = when (profile) {
         ClassPeriodProfile.GUILIN_YANSHAN -> guilinYanshanClassPeriodsKey
         ClassPeriodProfile.GUILIN_PINGFENG -> guilinPingfengClassPeriodsKey
@@ -739,8 +723,6 @@ class ScheduleSettingsStore(
         preferences.remove(guilinClassPeriodsKey)
     }
 }
-
-internal fun greetingEnabledFromStored(value: Boolean?): Boolean = value ?: true
 
 internal fun encodeClassPeriods(periods: List<ClassPeriod>): Set<String> {
     return periods.map { period ->

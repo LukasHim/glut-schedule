@@ -43,6 +43,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -79,17 +80,6 @@ import com.glut.schedule.data.model.FitnessScoreItem
 import com.glut.schedule.data.model.FitnessStandardTable
 import com.glut.schedule.data.model.FitnessStandardType
 
-private val FitnessPrimary = Color(0xFF141821)
-private val FitnessSecondary = Color(0xFF667085)
-private val FitnessAccent = Color(0xFF3F7DF6)
-private val FitnessSuccess = Color(0xFF2A9D72)
-private val FitnessPageBg = Color(0xFFF6F4EF)
-private val FitnessCardBg = Color(0xFFFFFEFB)
-private val FitnessChipBg = Color(0xFFE8E4D6)
-private val FitnessTableHeader = Color(0xFFEAF2FC)
-private val FitnessTableEven = Color(0xFFF4F8FD)
-private val FitnessTableOdd = Color(0xFFFFFEFB)
-private val FitnessGrid = Color(0xFFD9E5F3)
 private val CompositeLevelWidth = 52.dp
 private val CompositeScoreWidth = 48.dp
 private val CompositeValueWidth = 96.dp
@@ -106,13 +96,13 @@ fun FitnessScoreScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(FitnessPageBg)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         if (state.isRefreshing) {
             LinearProgressIndicator(
                 modifier = Modifier.fillMaxWidth(),
-                color = FitnessAccent,
-                trackColor = FitnessAccent.copy(alpha = 0.12f)
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
             )
         }
         MainTabs(
@@ -123,7 +113,7 @@ fun FitnessScoreScreen(
         if (state.message.isNotBlank()) {
             Text(
                 state.message,
-                color = FitnessSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 14.sp,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
             )
@@ -212,13 +202,13 @@ private fun FitnessPill(
         modifier = modifier
             .height(height)
             .clip(RoundedCornerShape(height / 2))
-            .background(if (selected) FitnessPrimary else FitnessChipBg)
+            .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Text(
             label,
-            color = if (selected) Color.White else FitnessSecondary,
+            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = fontSize,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             maxLines = 1
@@ -248,7 +238,7 @@ private fun ResultContent(
         item {
             Text(
                 "项目明细",
-                color = FitnessPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold,
                 fontSize = 20.sp,
                 modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
@@ -278,13 +268,13 @@ private fun HistoryContent(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(22.dp))
-                            .background(if (record.key == state.selectedHistoryKey) FitnessPrimary else FitnessChipBg)
+                            .background(if (record.key == state.selectedHistoryKey) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest)
                             .clickable { onSelect(record.key) }
                             .padding(horizontal = 14.dp, vertical = 8.dp)
                     ) {
                         Text(
                             "${record.year} ${record.term}",
-                            color = if (record.key == state.selectedHistoryKey) Color.White else FitnessSecondary,
+                            color = if (record.key == state.selectedHistoryKey) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 12.sp
                         )
                     }
@@ -311,7 +301,7 @@ private fun HistoryContent(
 private fun OverallCard(result: FitnessResult, label: String) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = FitnessPrimary,
+        color = MaterialTheme.colorScheme.primary,
         shape = RoundedCornerShape(14.dp)
     ) {
         Row(
@@ -320,11 +310,11 @@ private fun OverallCard(result: FitnessResult, label: String) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column {
-                Text(label, color = Color.White.copy(alpha = 0.72f), fontSize = 14.sp)
+                Text(label, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.72f), fontSize = 14.sp)
                 Spacer(Modifier.height(5.dp))
                 Text(
                     result.totalLevel.ifBlank { "---" },
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onPrimary,
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -332,11 +322,11 @@ private fun OverallCard(result: FitnessResult, label: String) {
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     result.totalScore.ifBlank { "---" },
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onPrimary,
                     fontSize = 34.sp,
                     fontWeight = FontWeight.Bold
                 )
-                Text("总分", color = Color.White.copy(alpha = 0.72f), fontSize = 13.sp)
+                Text("总分", color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.72f), fontSize = 13.sp)
             }
         }
     }
@@ -346,7 +336,7 @@ private fun OverallCard(result: FitnessResult, label: String) {
 private fun FitnessItemCard(item: FitnessScoreItem) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = FitnessCardBg,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         shape = RoundedCornerShape(12.dp),
         tonalElevation = 1.dp
     ) {
@@ -356,18 +346,18 @@ private fun FitnessItemCard(item: FitnessScoreItem) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(item.name, color = FitnessPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(item.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(3.dp))
-                Text("测试成绩 ${item.testScore.ifBlank { "---" }}", color = FitnessSecondary, fontSize = 14.sp)
+                Text("测试成绩 ${item.testScore.ifBlank { "---" }}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     item.score.ifBlank { "---" },
-                    color = if (item.score.isBlank() || item.score == "---") FitnessSecondary else FitnessSuccess,
+                    color = if (item.score.isBlank() || item.score == "---") MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.tertiary,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold
                 )
-                Text(item.conclusion.ifBlank { "---" }, color = FitnessSecondary, fontSize = 13.sp)
+                Text(item.conclusion.ifBlank { "---" }, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
             }
         }
     }
@@ -382,18 +372,18 @@ private fun EmptyFitnessState(
 ) {
     Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text, color = FitnessPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(text, color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
             Text(
                 hint,
-                color = FitnessSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 14.sp
             )
             if (onLogin != null) {
                 Spacer(Modifier.height(18.dp))
                 Button(
                     onClick = onLogin,
-                    colors = ButtonDefaults.buttonColors(containerColor = FitnessAccent)
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) { Text("登录体测平台") }
             }
         }
@@ -441,7 +431,7 @@ private fun StandardContent(
         }
         Text(
             standardHeading(selected),
-            color = FitnessPrimary,
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 8.dp)
@@ -476,7 +466,7 @@ private fun standardHeading(table: FitnessStandardTable): String = when (table.k
 private fun StandardNote(note: String) {
     Text(
         note,
-        color = FitnessSecondary,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         fontSize = 10.sp,
         lineHeight = 14.sp,
         modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 4.dp)
@@ -498,7 +488,7 @@ private fun CompositeStandardTable(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(2.dp))
-            .background(FitnessTableOdd)
+            .background(MaterialTheme.colorScheme.surface)
             .pointerInput(table.key) {
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)
@@ -518,7 +508,7 @@ private fun CompositeStandardTable(
             level = "等级",
             score = "分值",
             values = table.headers.map(::formatCompositeHeader),
-            background = FitnessTableHeader,
+            background = MaterialTheme.colorScheme.secondaryContainer,
             fixedScrollState = horizontalScrollState,
             valueWidth = valueWidth,
             totalWidth = totalWidth,
@@ -531,7 +521,7 @@ private fun CompositeStandardTable(
                     level = row.level,
                     score = row.score,
                     values = row.values,
-                    background = if (index % 2 == 0) FitnessTableOdd else FitnessTableEven,
+                    background = if (index % 2 == 0) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainerLow,
                     fixedScrollState = horizontalScrollState,
                     valueWidth = valueWidth,
                     totalWidth = totalWidth,
@@ -575,14 +565,14 @@ private fun TableCell(
     background: Color,
     header: Boolean,
     modifier: Modifier = Modifier,
-    textColor: Color = FitnessPrimary.copy(alpha = if (header) 1f else 0.72f),
+    textColor: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (header) 1f else 0.72f),
     forceBold: Boolean = false
 ) {
     Box(
         modifier = modifier
             .fillMaxHeight()
             .background(background)
-            .border(0.5.dp, FitnessGrid),
+            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -604,7 +594,7 @@ private fun ShortStandardTable(table: FitnessStandardTable, modifier: Modifier =
     Column(modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))) {
         Row(modifier = Modifier.fillMaxWidth().height(46.dp)) {
             table.headers.forEach { header ->
-                TableCell(header, FitnessTableHeader, true, Modifier.weight(1f))
+                TableCell(header, MaterialTheme.colorScheme.secondaryContainer, true, Modifier.weight(1f))
             }
         }
         if (table.type == FitnessStandardType.BMI && table.scores.isNotEmpty()) {
@@ -612,17 +602,17 @@ private fun ShortStandardTable(table: FitnessStandardTable, modifier: Modifier =
                 table.scores.forEach { score ->
                     TableCell(
                         text = score,
-                        background = FitnessTableOdd,
+                        background = MaterialTheme.colorScheme.surface,
                         header = false,
                         modifier = Modifier.weight(1f),
-                        textColor = FitnessSuccess,
+                        textColor = MaterialTheme.colorScheme.tertiary,
                         forceBold = true
                     )
                 }
             }
         }
         table.rows.forEachIndexed { index, row ->
-            val background = if (index % 2 == 0) FitnessTableEven else FitnessTableOdd
+            val background = if (index % 2 == 0) MaterialTheme.colorScheme.surfaceContainerLow else MaterialTheme.colorScheme.surface
             Row(modifier = Modifier.fillMaxWidth().height(42.dp)) {
                 TableCell(row.label.ifBlank { row.score }, background, false, Modifier.weight(1f))
                 row.values.forEach { value ->
@@ -653,9 +643,9 @@ private fun FitnessLoginDialog(
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = FitnessCardBg,
-        titleContentColor = FitnessPrimary,
-        textContentColor = FitnessPrimary,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = 0.dp,
         shape = RoundedCornerShape(20.dp),
         title = { Text("登录体测平台", fontWeight = FontWeight.Bold) },
@@ -685,7 +675,7 @@ private fun FitnessLoginDialog(
                             Icon(
                                 if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
                                 contentDescription = if (passwordVisible) "隐藏密码" else "显示密码",
-                                tint = FitnessSecondary
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     },
@@ -694,7 +684,7 @@ private fun FitnessLoginDialog(
                 )
                 Text(
                     "忘记密码？前往体测平台重置",
-                    color = FitnessAccent,
+                    color = MaterialTheme.colorScheme.primary,
                     fontSize = 13.sp,
                     lineHeight = 17.sp,
                     textDecoration = TextDecoration.Underline,
@@ -738,26 +728,48 @@ private fun FitnessLoginDialog(
                             ) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(16.dp),
-                                    color = FitnessAccent,
+                                    color = MaterialTheme.colorScheme.primary,
                                     strokeWidth = 2.dp
                                 )
-                                Text("加载中…", color = FitnessSecondary, fontSize = 12.sp)
+                                Text("加载中…", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                             }
                         } else {
-                            Text("点击刷新", color = FitnessSecondary, fontSize = 12.sp)
+                            Text("点击刷新", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                         }
                     }
                 }
-                Text("点击验证码图片可刷新", color = FitnessSecondary, fontSize = 12.sp)
+                Text("点击验证码图片可刷新", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                when {
+                    state.isCaptchaRecognizing -> {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(12.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                                strokeWidth = 1.5.dp
+                            )
+                            Text("正在自动识别验证码…", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                        }
+                    }
+                    state.captchaAutoRecognized && state.captcha.isNotBlank() -> {
+                        Text(
+                            "已自动识别，请核对后登录",
+                            color = MaterialTheme.colorScheme.tertiary,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
                 if (state.loginError.isNotBlank()) {
-                    Text(state.loginError, color = Color(0xFFDC2626), fontSize = 13.sp)
+                    Text(state.loginError, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
                 }
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消", color = FitnessSecondary) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消", color = MaterialTheme.colorScheme.onSurfaceVariant) } },
         confirmButton = {
             TextButton(onClick = onLogin, enabled = state.canSubmitLogin) {
-                val actionColor = if (state.canSubmitLogin) FitnessAccent else FitnessAccent.copy(alpha = 0.38f)
+                val actionColor = if (state.canSubmitLogin) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.38f)
                 if (state.isLoggingIn) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -780,15 +792,15 @@ private fun FitnessLoginDialog(
 
 @Composable
 private fun fitnessTextFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedTextColor = FitnessPrimary,
-    unfocusedTextColor = FitnessPrimary,
-    cursorColor = FitnessAccent,
-    focusedBorderColor = FitnessAccent,
-    unfocusedBorderColor = Color(0xFFCAD2DE),
-    focusedLabelColor = FitnessAccent,
-    unfocusedLabelColor = FitnessSecondary,
-    focusedContainerColor = Color.White,
-    unfocusedContainerColor = Color.White
+    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+    cursorColor = MaterialTheme.colorScheme.primary,
+    focusedBorderColor = MaterialTheme.colorScheme.primary,
+    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+    focusedLabelColor = MaterialTheme.colorScheme.primary,
+    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    focusedContainerColor = MaterialTheme.colorScheme.surface,
+    unfocusedContainerColor = MaterialTheme.colorScheme.surface
 )
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {

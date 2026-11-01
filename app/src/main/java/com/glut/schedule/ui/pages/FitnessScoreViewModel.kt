@@ -1,5 +1,7 @@
 package com.glut.schedule.ui.pages
 
+import android.graphics.BitmapFactory
+import android.util.Base64
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -9,6 +11,7 @@ import com.glut.schedule.data.model.FitnessStandardTable
 import com.glut.schedule.service.fitness.FitnessApiResponse
 import com.glut.schedule.service.fitness.FitnessGateway
 import com.glut.schedule.service.fitness.FitnessStorage
+import com.glut.schedule.service.ocr.CaptchaOcr
 import com.glut.schedule.service.parser.FitnessParser
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -41,6 +44,8 @@ data class FitnessScoreUiState(
     val password: String = "",
     val captcha: String = "",
     val captchaImage: String = "",
+    val isCaptchaRecognizing: Boolean = false,
+    val captchaAutoRecognized: Boolean = false,
     val loginError: String = ""
 ) {
     val selectedHistory: FitnessHistoryRecord?
@@ -75,7 +80,9 @@ class FitnessScoreViewModel(
      *
      * 默认值保持 [Dispatchers.Default]，生产行为与注入前完全一致。
      */
-    private val workerDispatcher: CoroutineDispatcher = Dispatchers.Default
+    private val workerDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    /** 生产环境使用 PaddleOCR 自动填充验证码；单元测试可省略。 */
+    private val captchaOcr: CaptchaOcr? = null
 ) : ViewModel() {
     private enum class FullLoadStatus { COMPLETE, PARTIAL, SESSION_EXPIRED }
 
@@ -122,7 +129,9 @@ class FitnessScoreViewModel(
 
     fun updateUsername(value: String) = _uiState.update { it.copy(username = value, loginError = "") }
     fun updatePassword(value: String) = _uiState.update { it.copy(password = value, loginError = "") }
-    fun updateCaptcha(value: String) = _uiState.update { it.copy(captcha = value, loginError = "") }
+    fun updateCaptcha(value: String) = _uiState.update {
+        it.copy(captcha = value, captchaAutoRecognized = false, loginError = "")
+    }
 
     fun dismissLogin() {
         captchaRequestId++
@@ -137,6 +146,8 @@ class FitnessScoreViewModel(
                 isLoggingIn = false,
                 loginError = "",
                 captcha = "",
+                isCaptchaRecognizing = false,
+                captchaAutoRecognized = false,
                 message = ""
             )
         }
@@ -190,7 +201,14 @@ class FitnessScoreViewModel(
                     applySnapshot(result, epoch, clearHistoryDetails = true)
                     if (epoch != operationEpoch) return@launch
                     _uiState.update {
-                        it.copy(showLoginDialog = false, captcha = "", captchaImage = "", loginError = "")
+                        it.copy(
+                            showLoginDialog = false,
+                            captcha = "",
+                            captchaImage = "",
+                            isCaptchaRecognizing = false,
+                            captchaAutoRecognized = false,
+                            loginError = ""
+                        )
                     }
                     captchaRequestId++
                     captchaCookie = ""
@@ -414,6 +432,9 @@ class FitnessScoreViewModel(
                 showLoginDialog = true,
                 isCaptchaLoading = true,
                 captchaImage = "",
+                captcha = "",
+                isCaptchaRecognizing = false,
+                captchaAutoRecognized = false,
                 message = message,
                 loginError = if (preserveError) it.loginError else ""
             )
@@ -428,6 +449,7 @@ class FitnessScoreViewModel(
                     captchaCookie = response.fitnessCookie
                     captchaLoginKey = response.loginKey
                     _uiState.update { it.copy(captchaImage = response.captchaImage) }
+                    recognizeCaptcha(response.captchaImage, requestId)
                 }
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
@@ -437,6 +459,49 @@ class FitnessScoreViewModel(
             } finally {
                 if (requestId == captchaRequestId) {
                     _uiState.update { it.copy(isCaptchaLoading = false) }
+                }
+            }
+        }
+    }
+
+    /**
+     * 验证码图片拿到后立即在本机跑 PaddleOCR，用户无需再手动抄写。
+     *
+     * 与直接登录页一致：识别期间用户手动输入的内容优先，后到的识别结果不会覆盖。
+     */
+    private fun recognizeCaptcha(dataUrl: String, requestId: Int) {
+        val ocr = captchaOcr
+        if (ocr == null || dataUrl.isBlank()) {
+            _uiState.update { it.copy(isCaptchaRecognizing = false) }
+            return
+        }
+        _uiState.update { it.copy(isCaptchaRecognizing = true, captchaAutoRecognized = false) }
+        viewModelScope.launch {
+            val text = try {
+                val bitmap = withContext(workerDispatcher) {
+                    val bytes = Base64.decode(dataUrl.substringAfter(','), Base64.DEFAULT)
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                }
+                bitmap?.let { ocr.recognize(it) }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                null
+            }
+            if (requestId != captchaRequestId) return@launch
+            _uiState.update { state ->
+                if (!state.showLoginDialog) {
+                    state.copy(isCaptchaRecognizing = false)
+                } else {
+                    when {
+                        text.isNullOrBlank() -> state.copy(isCaptchaRecognizing = false)
+                        state.captcha.isBlank() -> state.copy(
+                            captcha = text,
+                            isCaptchaRecognizing = false,
+                            captchaAutoRecognized = true
+                        )
+                        else -> state.copy(isCaptchaRecognizing = false)
+                    }
                 }
             }
         }
@@ -585,9 +650,10 @@ class FitnessScoreViewModel(
 class FitnessScoreViewModelFactory(
     private val service: FitnessGateway,
     private val store: FitnessStorage,
-    private val parser: FitnessParser = FitnessParser()
+    private val parser: FitnessParser = FitnessParser(),
+    private val captchaOcr: CaptchaOcr? = null
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        FitnessScoreViewModel(service, store, parser) as T
+        FitnessScoreViewModel(service, store, parser, captchaOcr = captchaOcr) as T
 }

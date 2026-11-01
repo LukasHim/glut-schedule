@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -57,14 +58,14 @@ import kotlin.math.atan2
 import kotlin.math.hypot
 import kotlin.math.min
 
-private val StatsPageBg = Color(0xFFF6F4EF)
-private val StatsCardBg = Color(0xFFFFFEFB)
-private val StatsTextPrimary = Color(0xFF141821)
-private val StatsTextSecondary = Color(0xFF667085)
-private val StatsAccent = Color(0xFF245B78)
-private val StatsTrack = Color(0xFFE5E7EB)
-private val StatsWarningBg = Color(0xFFFFF7E6)
-private val StatsWarningText = Color(0xFF9A6700)
+private val StatsPageBg: Color @Composable get() = MaterialTheme.colorScheme.background
+private val StatsCardBg: Color @Composable get() = MaterialTheme.colorScheme.surfaceContainerLow
+private val StatsTextPrimary: Color @Composable get() = MaterialTheme.colorScheme.onSurface
+private val StatsTextSecondary: Color @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
+private val StatsAccent: Color @Composable get() = MaterialTheme.colorScheme.primary
+private val StatsTrack: Color @Composable get() = MaterialTheme.colorScheme.outlineVariant
+private val StatsWarningBg: Color @Composable get() = MaterialTheme.colorScheme.secondaryContainer
+private val StatsWarningText: Color @Composable get() = MaterialTheme.colorScheme.onSecondaryContainer
 
 @Composable
 fun CourseTimeStatsScreen(
@@ -189,7 +190,7 @@ private fun FiltersCard(
                         modifier = Modifier
                             .weight(1f)
                             .clickable { onDimensionSelected(dimension) },
-                        color = if (selected) Color.White else Color.Transparent,
+                        color = if (selected) MaterialTheme.colorScheme.surfaceContainerLow else Color.Transparent,
                         shape = RoundedCornerShape(9.dp),
                         shadowElevation = if (selected) 1.dp else 0.dp
                     ) {
@@ -366,6 +367,9 @@ private fun DonutChart(
         modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
+        // Canvas 的 DrawScope 不是 @Composable 上下文，主题色需先在组合作用域内取出。
+        val trackColor = StatsTrack
+        val accentFallback = StatsAccent
         Canvas(
             modifier = Modifier
                 .fillMaxWidth()
@@ -401,7 +405,7 @@ private fun DonutChart(
             var startAngle = -90f
 
             drawCircle(
-                color = StatsTrack.copy(alpha = 0.72f),
+                color = trackColor.copy(alpha = 0.72f),
                 radius = radius,
                 style = Stroke(width = normalStroke)
             )
@@ -410,7 +414,7 @@ private fun DonutChart(
                 if (sweepAngle > 0f) {
                     val selected = item.key == selectedKey
                     drawArc(
-                        color = colorFromHex(item.colorHex).copy(
+                        color = colorFromHex(item.colorHex, accentFallback).copy(
                             alpha = if (selectedKey == null || selected) 1f else 0.34f
                         ),
                         startAngle = startAngle,
@@ -502,7 +506,7 @@ private fun CategoryCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val itemColor = colorFromHex(item.colorHex)
+    val itemColor = colorFromHex(item.colorHex, MaterialTheme.colorScheme.primary)
     Surface(
         onClick = onClick,
         modifier = modifier
@@ -674,5 +678,5 @@ internal fun findCourseTimeDonutSegment(
     return shares.indexOfLast { it > 0.0 }.takeIf { it >= 0 }
 }
 
-private fun colorFromHex(value: String): Color =
-    runCatching { Color(AndroidColor.parseColor(value)) }.getOrDefault(StatsAccent)
+private fun colorFromHex(value: String, fallback: Color): Color =
+    runCatching { Color(AndroidColor.parseColor(value)) }.getOrDefault(fallback)

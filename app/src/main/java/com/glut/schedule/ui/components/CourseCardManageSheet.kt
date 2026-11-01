@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,12 +41,6 @@ import com.glut.schedule.data.model.ScheduleCourse
 import com.glut.schedule.data.model.hiddenCourseKey
 import com.glut.schedule.data.model.hiddenRuleScopeText
 import com.glut.schedule.data.model.sectionSpanLabel
-
-private val PanelBackground = Color(0xFFFFFEFB)
-private val TextPrimary = Color(0xFF141821)
-private val TextSecondary = Color(0xFF667085)
-private val DividerColor = Color(0xFFEDE9E2)
-private val DangerColor = Color(0xFFB42318)
 
 /**
  * 长按课程卡片后弹出的「卡片管理」。
@@ -98,7 +93,7 @@ internal fun CourseCardManageSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = PanelBackground,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         tonalElevation = 0.dp
     ) {
         Column(
@@ -112,7 +107,7 @@ internal fun CourseCardManageSheet(
             Column {
                 Text(
                     text = block.course.title,
-                    color = TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 21.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
@@ -120,20 +115,20 @@ internal fun CourseCardManageSheet(
                 )
                 Text(
                     text = cardSubtitle(block, hasNoonSections),
-                    color = TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 14.sp,
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
 
-            Text("卡片颜色", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text("卡片颜色", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             CourseColorPaletteSection(
                 onSelect = onSelectColor,
                 onAdvanced = { showAdvanced = true },
                 onRestore = onRestoreColor
             )
 
-            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
+            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outlineVariant))
 
             DeleteRow(
                 label = "删除本周这次",
@@ -155,7 +150,7 @@ internal fun CourseCardManageSheet(
                 onClick = onDismiss,
                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
             ) {
-                Text("取消", color = TextSecondary, fontSize = 16.sp)
+                Text("取消", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp)
             }
         }
     }
@@ -206,13 +201,13 @@ private fun DeleteRow(label: String, scopeText: String, onClick: () -> Unit) {
         Icon(
             imageVector = Icons.Outlined.DeleteOutline,
             contentDescription = null,
-            tint = DangerColor,
+            tint = MaterialTheme.colorScheme.error,
             modifier = Modifier.size(20.dp)
         )
         Column(modifier = Modifier.padding(start = 12.dp)) {
-            Text(label, color = DangerColor, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(label, color = MaterialTheme.colorScheme.error, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             // 范围写清楚，否则三档之间用户只能靠猜。
-            Text(scopeText, color = TextSecondary, fontSize = 13.sp)
+            Text(scopeText, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
         }
     }
 }

@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -94,12 +95,6 @@ internal enum class ScheduleDayMarker(val label: String) {
     ADJUSTMENT("调")
 }
 
-/** 法定放假日的角标配色（与小程序 `.date-marker--holiday` 同值）。 */
-private val HolidayMarkerColor = Color(0xFF2D9A72)
-
-/** 手动调课目标日的角标配色（与小程序 `.date-marker--adjustment` 同值）。 */
-private val AdjustmentMarkerColor = Color(0xFFE57411)
-
 /**
  * 课表网格线配色。
  *
@@ -171,6 +166,11 @@ fun ScheduleGrid(
     onCourseLongClick: ((CourseBlock) -> Unit)? = null,
     /** 该学期的教务调课记录，用来给调课/补课产生的卡片打「调」/「补」角标。 */
     adjustments: List<SemesterAdjustment> = emptyList(),
+    /**
+     * false：课表铺在背景图上，文字固定用白色；
+     * true：课表使用主题背景，文字与网格线全部走 MaterialTheme 角色色。
+     */
+    useSurfaceColors: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
@@ -202,7 +202,8 @@ fun ScheduleGrid(
                 dayCount = dayCount,
                 showCalendarDates = showCalendarDates,
                 holidayDates = holidayDates,
-                manualAdjustmentDates = manualAdjustmentDates
+                manualAdjustmentDates = manualAdjustmentDates,
+                useSurfaceColors = useSurfaceColors
             )
 
             Row(
@@ -214,7 +215,8 @@ fun ScheduleGrid(
                     visibleRows = visibleRows,
                     rowHeight = rowHeight,
                     width = leftWidth,
-                    hasNoonSections = hasNoonSections
+                    hasNoonSections = hasNoonSections,
+                    useSurfaceColors = useSurfaceColors
                 )
                 TimetableBody(
                     visibleRows = visibleRows,
@@ -227,6 +229,7 @@ fun ScheduleGrid(
                     onCourseLongClick = onCourseLongClick,
                     weekNumber = week.number,
                     adjustments = adjustments,
+                    useSurfaceColors = useSurfaceColors,
                 )
             }
         }
@@ -242,10 +245,17 @@ fun ScheduleCalendarHeader(
     dayCount: Int,
     showCalendarDates: Boolean = true,
     holidayDates: Set<LocalDate> = emptySet(),
-    manualAdjustmentDates: Set<LocalDate> = emptySet()
+    manualAdjustmentDates: Set<LocalDate> = emptySet(),
+    useSurfaceColors: Boolean = false
 ) {
+    val colorScheme = MaterialTheme.colorScheme
     Row(modifier = Modifier.fillMaxWidth()) {
-        MonthHeader(week = week, width = leftWidth, showCalendarDates = showCalendarDates)
+        MonthHeader(
+            week = week,
+            width = leftWidth,
+            showCalendarDates = showCalendarDates,
+            color = if (useSurfaceColors) colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.9f)
+        )
         WeekDayHeader(
             week = week,
             today = today,
@@ -253,7 +263,8 @@ fun ScheduleCalendarHeader(
             dayCount = dayCount,
             showCalendarDates = showCalendarDates,
             holidayDates = holidayDates,
-            manualAdjustmentDates = manualAdjustmentDates
+            manualAdjustmentDates = manualAdjustmentDates,
+            useSurfaceColors = useSurfaceColors
         )
     }
 }
@@ -262,7 +273,8 @@ fun ScheduleCalendarHeader(
 private fun MonthHeader(
     week: ScheduleWeek,
     width: Dp,
-    showCalendarDates: Boolean
+    showCalendarDates: Boolean,
+    color: Color
 ) {
     Box(
         modifier = Modifier
@@ -275,7 +287,7 @@ private fun MonthHeader(
     ) {
         Text(
             text = if (showCalendarDates) scheduleGridMonthText(week.monday) else "周次",
-            color = Color.White.copy(alpha = 0.9f),
+            color = color,
             fontSize = 12.sp,
             lineHeight = 13.sp,
             fontWeight = FontWeight.Bold
@@ -299,8 +311,31 @@ private fun WeekDayHeader(
     dayCount: Int,
     showCalendarDates: Boolean,
     holidayDates: Set<LocalDate>,
-    manualAdjustmentDates: Set<LocalDate>
+    manualAdjustmentDates: Set<LocalDate>,
+    useSurfaceColors: Boolean
 ) {
+    val colorScheme = MaterialTheme.colorScheme
+    val activeColor = if (useSurfaceColors) colorScheme.onSurface else Color.White
+    val inactiveNameColor = if (useSurfaceColors) {
+        colorScheme.onSurfaceVariant
+    } else {
+        Color.White.copy(alpha = 0.42f)
+    }
+    val inactiveDateColor = if (useSurfaceColors) {
+        colorScheme.outline
+    } else {
+        Color.White.copy(alpha = 0.34f)
+    }
+    val todayContainer = if (useSurfaceColors) {
+        colorScheme.primaryContainer
+    } else {
+        Color.White.copy(alpha = 0.22f)
+    }
+    val todayContainerContent = if (useSurfaceColors) {
+        colorScheme.onPrimaryContainer
+    } else {
+        Color.White
+    }
     Row(modifier = Modifier.fillMaxWidth()) {
         scheduleCalendarDays(week, today, dayCount, showCalendarDates).forEach { item ->
             val marker = scheduleDayMarker(item.date, holidayDates, manualAdjustmentDates)
@@ -317,19 +352,19 @@ private fun WeekDayHeader(
                 ) {
                     Text(
                         text = item.name,
-                        color = if (item.isToday) Color.White else Color.White.copy(alpha = 0.42f),
+                        color = if (item.isToday) activeColor else inactiveNameColor,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
                     )
                     item.date?.let { date ->
                         Text(
                             text = date.dayOfMonth.toString(),
-                            color = if (item.isToday) Color.White else Color.White.copy(alpha = 0.34f),
+                            color = if (item.isToday) todayContainerContent else inactiveDateColor,
                             fontSize = 12.sp,
                             modifier = if (item.isToday) {
                                 Modifier
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(Color.White.copy(alpha = 0.22f))
+                                    .background(todayContainer)
                                     .padding(horizontal = 7.dp, vertical = 2.dp)
                             } else {
                                 Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
@@ -340,10 +375,9 @@ private fun WeekDayHeader(
                 if (marker != null) {
                     Text(
                         text = marker.label,
-                        color = if (marker == ScheduleDayMarker.ADJUSTMENT) {
-                            AdjustmentMarkerColor
-                        } else {
-                            HolidayMarkerColor
+                        color = when (marker) {
+                            ScheduleDayMarker.ADJUSTMENT -> colorScheme.primary
+                            ScheduleDayMarker.HOLIDAY -> colorScheme.tertiary
                         },
                         fontSize = 10.sp,
                         fontWeight = FontWeight.ExtraBold,
@@ -407,8 +441,16 @@ private fun PeriodColumn(
     visibleRows: List<ClassPeriod>,
     rowHeight: Dp,
     width: Dp,
-    hasNoonSections: Boolean = true
+    hasNoonSections: Boolean = true,
+    useSurfaceColors: Boolean = false
 ) {
+    val colorScheme = MaterialTheme.colorScheme
+    val primaryText = if (useSurfaceColors) colorScheme.onSurface else Color.White
+    val secondaryText = if (useSurfaceColors) {
+        colorScheme.onSurfaceVariant
+    } else {
+        Color.White.copy(alpha = 0.56f)
+    }
     // 有中午节次的来源（桂林）用 periodLabel() 把内部号映射成「午1/午2 + 5-12」；
     // 南宁与研究生没有中午节次，内部号即显示号，直排。
     Column(modifier = Modifier.width(width)) {
@@ -421,20 +463,20 @@ private fun PeriodColumn(
             ) {
                 Text(
                     text = if (hasNoonSections) period.periodLabel() else "${period.section}",
-                    color = Color.White,
+                    color = primaryText,
                     style = periodColumnTextStyle(fontSize = 14.sp, lineHeight = 16.sp),
                     maxLines = 1,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = period.startsAt,
-                    color = Color.White.copy(alpha = 0.56f),
+                    color = secondaryText,
                     style = periodColumnTextStyle(fontSize = 9.sp, lineHeight = 11.sp),
                     maxLines = 1
                 )
                 Text(
                     text = period.endsAt,
-                    color = Color.White.copy(alpha = 0.56f),
+                    color = secondaryText,
                     style = periodColumnTextStyle(fontSize = 9.sp, lineHeight = 11.sp),
                     maxLines = 1
                 )
@@ -455,7 +497,19 @@ private fun TimetableBody(
     onCourseLongClick: ((CourseBlock) -> Unit)? = null,
     weekNumber: Int = 0,
     adjustments: List<SemesterAdjustment> = emptyList(),
+    useSurfaceColors: Boolean = false,
 ) {
+    val colorScheme = MaterialTheme.colorScheme
+    val gridLineColor = if (useSurfaceColors) {
+        colorScheme.outlineVariant.copy(alpha = 0.7f)
+    } else {
+        GridLineColor
+    }
+    val gridLineBoundaryColor = if (useSurfaceColors) {
+        colorScheme.outline.copy(alpha = 0.85f)
+    } else {
+        GridLineBoundaryColor
+    }
     val totalHeight = rowHeight * visibleRows.size
     Box(
         modifier = Modifier
@@ -477,7 +531,7 @@ private fun TimetableBody(
                     // 末行贴着容器底边，线宽的一半会被裁掉，所以把 y 收进来半个线宽。
                     val y = (rowPx * (index + 1)).coerceAtMost(size.height - stroke / 2f)
                     drawLine(
-                        color = if (isBoundary) GridLineBoundaryColor else GridLineColor,
+                        color = if (isBoundary) gridLineBoundaryColor else gridLineColor,
                         start = Offset(0f, y),
                         end = Offset(size.width, y),
                         strokeWidth = stroke
@@ -489,7 +543,7 @@ private fun TimetableBody(
                 for (day in 1 until dayCount) {
                     val x = (colPx * day).coerceAtMost(size.width - normalStroke / 2f)
                     drawLine(
-                        color = GridLineColor,
+                        color = gridLineColor,
                         start = Offset(x, 0f),
                         end = Offset(x, size.height),
                         strokeWidth = normalStroke
@@ -684,12 +738,12 @@ private fun CourseCard(
                     modifier = Modifier
                         .size(18.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFE11D48)),
+                        .background(MaterialTheme.colorScheme.error),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = conflictCount.toString(),
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onError,
                         fontWeight = FontWeight.Bold,
                         fontSize = 9.sp,
                         lineHeight = 9.sp

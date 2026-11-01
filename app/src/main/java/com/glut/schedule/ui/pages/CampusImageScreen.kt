@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -71,9 +72,12 @@ private fun decodeCampusImage(bytes: ByteArray): Bitmap? {
 
 private data class CampusBitmapState(val bitmap: Bitmap? = null, val isComplete: Boolean = false)
 
-private val CampusPageBackground = Color(0xFFF6F4EF)
-private val CampusMessageBackground = Color(0xFFFFFEFB)
-private val CampusText = Color(0xFF141821)
+private val CampusPageBackground: Color
+    @Composable get() = MaterialTheme.colorScheme.background
+private val CampusMessageBackground: Color
+    @Composable get() = MaterialTheme.colorScheme.surfaceContainerLow
+private val CampusText: Color
+    @Composable get() = MaterialTheme.colorScheme.onSurface
 
 private val CampusImageTabs = listOf(
     CampusImageType.CAMPUS_MAP to "校园地图",

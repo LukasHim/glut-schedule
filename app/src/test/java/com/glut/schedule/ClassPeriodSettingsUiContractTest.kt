@@ -49,7 +49,8 @@ class ClassPeriodSettingsUiContractTest {
         val activity = source("MainActivity.kt")
 
         assertTrue(activity.contains("classPeriodsEnabled"))
-        assertTrue(activity.contains("clickable(enabled = classPeriodsEnabled"))
+        assertTrue(activity.contains("enabled = classPeriodsEnabled"))
+        assertTrue(activity.contains("clickable(enabled = enabled"))
     }
 
     @Test

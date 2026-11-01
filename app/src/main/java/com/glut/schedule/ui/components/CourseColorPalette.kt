@@ -89,10 +89,10 @@ internal fun CourseColorPaletteSection(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             TextButton(onClick = onRestore) {
-                Text("恢复自动配色", color = Color(0xFF667085), fontSize = 15.sp)
+                Text("恢复自动配色", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 15.sp)
             }
             TextButton(onClick = onAdvanced) {
-                Text("高级调色", color = Color(0xFF3F7DF6), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text("高级调色", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -146,7 +146,7 @@ internal fun AdvancedColorSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color(0xFFFFFEFB),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         tonalElevation = 0.dp
     ) {
         Column(
@@ -161,12 +161,12 @@ internal fun AdvancedColorSheet(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "高级调色",
-                    color = Color(0xFF141821),
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 21.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f)
                 )
-                Text("拖动或输入十六进制", color = Color(0xFF667085), fontSize = 13.sp)
+                Text("拖动或输入十六进制", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
             }
             Surface(
                 modifier = Modifier.fillMaxWidth().height(52.dp),
@@ -212,12 +212,12 @@ internal fun AdvancedColorSheet(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "色相",
-                    color = Color(0xFF344054),
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f)
                 )
-                Text("拖动切换基础颜色", color = Color(0xFF98A2B3), fontSize = 13.sp)
+                Text("拖动切换基础颜色", color = MaterialTheme.colorScheme.outline, fontSize = 13.sp)
             }
             Box(
                 modifier = Modifier
@@ -251,7 +251,7 @@ internal fun AdvancedColorSheet(
                         }
                         .size(22.dp)
                         .background(Color.White, CircleShape)
-                        .border(2.dp, Color(0xFF667085), CircleShape)
+                        .border(2.dp, MaterialTheme.colorScheme.onSurfaceVariant, CircleShape)
                 )
             }
             OutlinedTextField(
@@ -269,13 +269,13 @@ internal fun AdvancedColorSheet(
                 placeholder = { Text("#154173") },
                 singleLine = true,
                 isError = hexField.text.isNotBlank() && normalizedColor == null,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color(0xFF141821)),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color(0xFF141821),
-                    unfocusedTextColor = Color(0xFF141821),
-                    focusedBorderColor = Color(0xFF3F7DF6),
-                    unfocusedBorderColor = Color(0xFF98A2B3),
-                    cursorColor = Color(0xFF3F7DF6)
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    cursorColor = MaterialTheme.colorScheme.primary
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -284,7 +284,7 @@ internal fun AdvancedColorSheet(
                         if (focusState.isFocused) scope.launch { hexBringIntoViewRequester.bringIntoView() }
                     }
             )
-            Text("支持 #RRGGBB 或 RRGGBB；每组十六进制取值为 00 到 FF。", color = Color(0xFF667085), fontSize = 12.sp)
+            Text("支持 #RRGGBB 或 RRGGBB；每组十六进制取值为 00 到 FF。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                 horizontalArrangement = Arrangement.End

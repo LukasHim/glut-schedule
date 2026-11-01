@@ -15,6 +15,8 @@ import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.Terminal
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 
@@ -33,9 +35,22 @@ enum class ExamCourseVisualCategory {
     General
 }
 
+/**
+ * 课程视觉的强调色「语义」，不是具体色值。
+ *
+ * 具体色值由调用方在 @Composable 里通过 MaterialTheme.colorScheme 解析；
+ * 这样本文件保持纯函数，单元测试不依赖 Compose 主题。
+ */
+enum class ExamCourseAccent {
+    Primary,
+    Secondary,
+    Tertiary
+}
+
 data class ExamCourseVisual(
     val icon: ImageVector,
-    val accent: Color,
+    /** 语义强调色，实际色值在 @Composable 里从 MaterialTheme.colorScheme 解析。 */
+    val accent: ExamCourseAccent,
     val category: ExamCourseVisualCategory
 )
 
@@ -72,57 +87,57 @@ object ExamCourseVisualMapper {
         return when (category) {
             ExamCourseVisualCategory.Hardware -> ExamCourseVisual(
                 icon = Icons.Outlined.Memory,
-                accent = Color(0xFF7C5FE7),
+                accent = ExamCourseAccent.Secondary,
                 category = category
             )
             ExamCourseVisualCategory.Code -> ExamCourseVisual(
                 icon = Icons.Outlined.Terminal,
-                accent = Color(0xFF3F7DF6),
+                accent = ExamCourseAccent.Primary,
                 category = category
             )
             ExamCourseVisualCategory.Engineering -> ExamCourseVisual(
                 icon = Icons.Outlined.Engineering,
-                accent = Color(0xFFE8752A),
+                accent = ExamCourseAccent.Secondary,
                 category = category
             )
             ExamCourseVisualCategory.Math -> ExamCourseVisual(
                 icon = Icons.Outlined.Functions,
-                accent = Color(0xFF3F7DF6),
+                accent = ExamCourseAccent.Primary,
                 category = category
             )
             ExamCourseVisualCategory.Physics -> ExamCourseVisual(
                 icon = Icons.Outlined.Bolt,
-                accent = Color(0xFF6E8EF6),
+                accent = ExamCourseAccent.Primary,
                 category = category
             )
             ExamCourseVisualCategory.LabScience -> ExamCourseVisual(
                 icon = Icons.Outlined.Science,
-                accent = Color(0xFF2D9A72),
+                accent = ExamCourseAccent.Secondary,
                 category = category
             )
             ExamCourseVisualCategory.Language -> ExamCourseVisual(
                 icon = Icons.Outlined.Language,
-                accent = Color(0xFF3F7DF6),
+                accent = ExamCourseAccent.Primary,
                 category = category
             )
             ExamCourseVisualCategory.PublicAffairs -> ExamCourseVisual(
                 icon = Icons.Outlined.Public,
-                accent = Color(0xFF2D9A72),
+                accent = ExamCourseAccent.Secondary,
                 category = category
             )
             ExamCourseVisualCategory.BusinessLaw -> ExamCourseVisual(
                 icon = Icons.Outlined.AccountBalance,
-                accent = Color(0xFFE8752A),
+                accent = ExamCourseAccent.Tertiary,
                 category = category
             )
             ExamCourseVisualCategory.PsychologyEducation -> ExamCourseVisual(
                 icon = Icons.Outlined.Psychology,
-                accent = Color(0xFF7C5FE7),
+                accent = ExamCourseAccent.Secondary,
                 category = category
             )
             ExamCourseVisualCategory.Digital -> ExamCourseVisual(
                 icon = Icons.Outlined.Calculate,
-                accent = Color(0xFF3F7DF6),
+                accent = ExamCourseAccent.Primary,
                 category = category
             )
             ExamCourseVisualCategory.General -> defaultVisual(courseName)
@@ -131,12 +146,12 @@ object ExamCourseVisualMapper {
 
     private fun defaultVisual(courseName: String): ExamCourseVisual {
         val defaults = listOf(
-            Icons.AutoMirrored.Outlined.MenuBook to Color(0xFF3F7DF6),
-            Icons.Outlined.StarBorder to Color(0xFF7C5FE7),
-            Icons.Outlined.Functions to Color(0xFF3F7DF6),
-            Icons.Outlined.Computer to Color(0xFFE8752A),
-            Icons.Outlined.Calculate to Color(0xFF3F7DF6),
-            Icons.Outlined.Engineering to Color(0xFFE8752A)
+            Icons.AutoMirrored.Outlined.MenuBook to ExamCourseAccent.Primary,
+            Icons.Outlined.StarBorder to ExamCourseAccent.Secondary,
+            Icons.Outlined.Functions to ExamCourseAccent.Primary,
+            Icons.Outlined.Computer to ExamCourseAccent.Tertiary,
+            Icons.Outlined.Calculate to ExamCourseAccent.Primary,
+            Icons.Outlined.Engineering to ExamCourseAccent.Tertiary
         )
         val (icon, accent) = defaults[kotlin.math.abs(courseName.hashCode()) % defaults.size]
         return ExamCourseVisual(
@@ -145,6 +160,14 @@ object ExamCourseVisualMapper {
             category = ExamCourseVisualCategory.General
         )
     }
+}
+
+/** 把语义强调色解析成当前主题下的实际颜色。 */
+@Composable
+fun ExamCourseAccent.toColor(): Color = when (this) {
+    ExamCourseAccent.Primary -> MaterialTheme.colorScheme.primary
+    ExamCourseAccent.Secondary -> MaterialTheme.colorScheme.secondary
+    ExamCourseAccent.Tertiary -> MaterialTheme.colorScheme.tertiary
 }
 
 private fun String.hasAny(vararg keywords: String): Boolean {

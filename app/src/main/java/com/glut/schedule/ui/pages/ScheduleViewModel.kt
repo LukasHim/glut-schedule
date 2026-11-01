@@ -103,6 +103,8 @@ data class ScheduleUiState(
     val remoteBackgroundSha256: String = "",
     val remoteBackgroundDisplayName: String = "",
     val backgroundDimAmount: Float = DEFAULT_BACKGROUND_DIM_AMOUNT,
+    /** 是否绘制课表背景；关闭时使用普通页面主题背景。 */
+    val showBackground: Boolean = false,
     val courseColorOverrides: Map<String, String> = emptyMap(),
     val isRefreshing: Boolean = false,
     val message: String = "",
@@ -158,6 +160,7 @@ internal fun selectedWeekAfterCalendarRefresh(
 
 private data class ScheduleAppearanceSettings(
     val backgroundPreferences: ScheduleBackgroundPreferences,
+    val showBackground: Boolean,
     val campusType: CampusType,
     val guilinSubCampus: String,
     val classPeriodProfileOverrides: Map<ClassPeriodProfile, List<ClassPeriod>>
@@ -176,6 +179,7 @@ private data class ScheduleSettingsUiState(
     val remoteBackgroundSha256: String,
     val remoteBackgroundDisplayName: String,
     val backgroundDimAmount: Float,
+    val showBackground: Boolean,
     val campusType: CampusType,
     val guilinSubCampus: String = GUILIN_SUB_CAMPUS_DEFAULT,
     val classPeriodProfileOverrides: Map<ClassPeriodProfile, List<ClassPeriod>> = emptyMap(),
@@ -309,10 +313,12 @@ class ScheduleViewModel(
                 settingsStore.backgroundPreferences,
                 settingsStore.campusType,
                 settingsStore.guilinSubCampus,
-                settingsStore.classPeriodProfileOverrides
-            ) { backgroundPreferences, campusType, guilinSubCampus, profileOverrides ->
+                settingsStore.classPeriodProfileOverrides,
+                settingsStore.showScheduleBackground
+            ) { backgroundPreferences, campusType, guilinSubCampus, profileOverrides, showBackground ->
                 ScheduleAppearanceSettings(
                     backgroundPreferences = backgroundPreferences,
+                    showBackground = showBackground,
                     campusType = campusType,
                     guilinSubCampus = guilinSubCampus,
                     classPeriodProfileOverrides = profileOverrides
@@ -336,6 +342,7 @@ class ScheduleViewModel(
                 remoteBackgroundSha256 = appearance.backgroundPreferences.remoteSha256,
                 remoteBackgroundDisplayName = appearance.backgroundPreferences.remoteDisplayName,
                 backgroundDimAmount = appearance.backgroundPreferences.dimAmount,
+                showBackground = appearance.showBackground,
                 campusType = appearance.campusType,
                 guilinSubCampus = appearance.guilinSubCampus,
                 classPeriodProfileOverrides = appearance.classPeriodProfileOverrides,
@@ -456,6 +463,7 @@ class ScheduleViewModel(
                 remoteBackgroundSha256 = settings.remoteBackgroundSha256,
                 remoteBackgroundDisplayName = settings.remoteBackgroundDisplayName,
                 backgroundDimAmount = settings.backgroundDimAmount,
+                showBackground = settings.showBackground,
                 courseColorOverrides = coloredState.overrides,
                 semesters = semesters,
                 viewedSemester = viewedSemester,
@@ -560,6 +568,10 @@ class ScheduleViewModel(
 
     fun setBackgroundDimAmount(value: Float) {
         viewModelScope.launch { settingsStore.setBackgroundDimAmount(value) }
+    }
+
+    fun setShowBackground(show: Boolean) {
+        viewModelScope.launch { settingsStore.setShowScheduleBackground(show) }
     }
 
     fun clearCustomBackground() {

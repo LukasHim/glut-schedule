@@ -1,6 +1,7 @@
 package com.glut.schedule
 
 import android.animation.ValueAnimator
+import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color as AndroidColor
@@ -35,6 +36,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -79,6 +81,11 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -99,6 +106,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -125,20 +133,13 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.FileProvider
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.glut.schedule.data.model.NoticeInfo
 import com.glut.schedule.data.model.CourseColorMapper
 import com.glut.schedule.data.model.ScheduleCourse
-import com.glut.schedule.data.model.hasUnreadNotices
-import com.glut.schedule.service.NoticeChecker
 import com.glut.schedule.service.UpdateChecker
 import com.glut.schedule.service.UpdateInfo
-import com.glut.schedule.ui.NoticeLoadState
-import com.glut.schedule.ui.resolveNoticeLoadState
-import com.glut.schedule.service.greeting.DrawerGreeting
-import com.glut.schedule.service.greeting.DrawerGreetingContext
-import com.glut.schedule.service.greeting.DrawerGreetingPlanner
-import com.glut.schedule.service.holiday.TimorHolidayCalendarParser
 import com.glut.schedule.ui.navigation.DrawerItem
 import com.glut.schedule.ui.navigation.campusDrawerItems
 import com.glut.schedule.ui.navigation.isEnabledFor
@@ -202,13 +203,16 @@ import com.glut.schedule.ui.pages.HolidayAdjustmentsViewModel
 import com.glut.schedule.ui.pages.HolidayAdjustmentsViewModelFactory
 import com.glut.schedule.ui.pages.GradeExamViewModel
 import com.glut.schedule.ui.pages.GradeExamViewModelFactory
-import com.glut.schedule.ui.pages.NoticeScreen
 import com.glut.schedule.ui.pages.StudyPlanScreen
 import com.glut.schedule.ui.pages.StudyPlanViewModel
 import com.glut.schedule.ui.pages.StudyPlanViewModelFactory
 import com.glut.schedule.ui.theme.GlutScheduleTheme
 import com.glut.schedule.data.settings.CampusType
+import com.glut.schedule.data.settings.ThemeMode
 import com.glut.schedule.data.settings.capabilitiesFor
+import com.glut.schedule.service.reminder.ClassReminderNotifier
+import com.glut.schedule.ui.theme.isDynamicColorAvailable
+import com.glut.schedule.ui.theme.resolveDarkTheme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -263,24 +267,39 @@ class MainActivity : ComponentActivity() {
         holdLaunchWindowUntilFirstFrameIsReady()
 
         setContent {
+            val themeMode by container.settingsStore.themeMode
+                .collectAsStateWithLifecycle(initialValue = ThemeMode.SYSTEM)
+            val dynamicColorEnabled by container.settingsStore.dynamicColorEnabled
+                .collectAsStateWithLifecycle(initialValue = false)
+            val darkTheme = resolveDarkTheme(themeMode)
             @OptIn(ExperimentalMaterial3Api::class)
-            GlutScheduleTheme {
+            GlutScheduleTheme(
+                themeMode = themeMode,
+                dynamicColorEnabled = dynamicColorEnabled
+            ) {
                 val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
                 val scope = rememberCoroutineScope()
                 var selectedItem by remember { mutableStateOf(DrawerItem.Schedule) }
                 var showUpdateDialog by remember { mutableStateOf<UpdateDialogState?>(null) }
                 var autoPopupUpdateVersion by remember { mutableStateOf<String?>(null) }
-                var showNoticePopup by remember { mutableStateOf<NoticeInfo?>(null) }
-                var noticePopupSessionDismissedIds by remember { mutableStateOf(emptySet<String>()) }
-                var initialNoticeCheckFinished by remember { mutableStateOf(false) }
-                var refreshedNotices by remember { mutableStateOf<List<NoticeInfo>?>(null) }
-                var noticeRefreshFailed by remember { mutableStateOf(false) }
-                var noticeRefreshRequestId by remember { mutableIntStateOf(0) }
                 var showResetConfirm by remember { mutableStateOf(false) }
                 var settingsSubPage by remember { mutableStateOf(SettingsSubPage.ROOT) }
                 var drawerGestureBlocked by remember { mutableStateOf(false) }
                 var pendingBackgroundCrop by remember { mutableStateOf<PendingBackgroundCrop?>(null) }
                 var backgroundCropSaving by remember { mutableStateOf(false) }
+                var notificationPermissionGranted by remember {
+                    mutableStateOf(ClassReminderNotifier.canPostNotifications(this@MainActivity))
+                }
+                val notificationPermissionLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.RequestPermission()
+                ) { granted ->
+                    notificationPermissionGranted = granted
+                    scope.launch { container.classReminderScheduler.refresh() }
+                }
+                LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+                    notificationPermissionGranted =
+                        ClassReminderNotifier.canPostNotifications(this@MainActivity)
+                }
 
                 // 返回键：先关抽屉 → 再回到课表主页 → 最后退出
                 BackHandler(enabled = true) {
@@ -393,7 +412,8 @@ class MainActivity : ComponentActivity() {
                         gradeExamParser = container.gradeExamParser,
                         studyPlanParser = container.studyPlanParser,
                         semesterImportService = container.academicSemesterImportService,
-                        semesterBulkDownloadCoordinator = container.semesterBulkDownloadCoordinator
+                        semesterBulkDownloadCoordinator = container.semesterBulkDownloadCoordinator,
+                        captchaOcr = container.captchaOcr
                     )
                 )
                 LaunchedEffect(container.semesterBulkDownloadCoordinator) {
@@ -422,7 +442,8 @@ class MainActivity : ComponentActivity() {
                     factory = FitnessScoreViewModelFactory(
                         service = container.fitnessApiService,
                         store = container.fitnessStore,
-                        parser = container.fitnessParser
+                        parser = container.fitnessParser,
+                        captchaOcr = container.captchaOcr
                     )
                 )
                 val partnerScheduleViewModel: PartnerScheduleViewModel = viewModel(
@@ -434,31 +455,12 @@ class MainActivity : ComponentActivity() {
                     )
                 )
                 val campusType by container.settingsStore.campusType.collectAsStateWithLifecycle(initialValue = CampusType.GUILIN)
-                val greetingEnabled by container.settingsStore.greetingEnabled.collectAsStateWithLifecycle(initialValue = true)
-                val studentName by container.academicSessionStore.authenticatedStudentName
-                    .collectAsStateWithLifecycle(initialValue = "")
-                val authenticatedStudentNumber by container.academicSessionStore.authenticatedStudentNumber
-                    .collectAsStateWithLifecycle(initialValue = "")
-                val greetingExams by container.scheduleRepository.exams
-                    .collectAsStateWithLifecycle(initialValue = emptyList())
-                val greetingSemesterStart by container.settingsStore.semesterStartMonday
-                    .collectAsStateWithLifecycle(initialValue = com.glut.schedule.data.model.DEFAULT_SEMESTER_START_MONDAY)
-                val greetingSemesterEnd by container.settingsStore.semesterEndDate
-                    .collectAsStateWithLifecycle(initialValue = com.glut.schedule.data.model.DEFAULT_SEMESTER_END_DATE)
-                val greetingHolidayCache by container.settingsStore.holidaysCache
-                    .collectAsStateWithLifecycle(initialValue = "" to "")
-                val greetingTemplates by container.greetingTemplateRepository.templates.collectAsStateWithLifecycle()
-                val greetingPlanner = remember { DrawerGreetingPlanner() }
-                var drawerGreeting by remember {
-                    mutableStateOf(
-                        DrawerGreeting(
-                            text = DrawerGreetingPlanner.STATIC_SLOGAN,
-                            category = null,
-                            animate = false
-                        )
-                    )
-                }
-                var greetingAnimationRunId by remember { mutableStateOf(0) }
+                val showBackground by container.settingsStore.showScheduleBackground
+                    .collectAsStateWithLifecycle(initialValue = false)
+                val reminderEnabled by container.settingsStore.classReminderEnabled
+                    .collectAsStateWithLifecycle(initialValue = false)
+                val reminderMinutes by container.settingsStore.classReminderMinutes
+                    .collectAsStateWithLifecycle(initialValue = 10)
                 val campusInfoViewModel: CampusImageViewModel? =
                     if (selectedItem == DrawerItem.CampusInfo) {
                         viewModel(
@@ -528,56 +530,17 @@ class MainActivity : ComponentActivity() {
                 } else {
                     false
                 }
-                val latestGreetingEnabled by rememberUpdatedState(greetingEnabled)
-                val latestStudentName by rememberUpdatedState(studentName)
-                val latestAuthenticatedStudentNumber by rememberUpdatedState(authenticatedStudentNumber)
-                val latestGreetingExams by rememberUpdatedState(greetingExams)
-                val latestSemesterStart by rememberUpdatedState(greetingSemesterStart)
-                val latestSemesterEnd by rememberUpdatedState(greetingSemesterEnd)
-                val latestGreetingHolidayCache by rememberUpdatedState(greetingHolidayCache)
-                val latestGreetingTemplates by rememberUpdatedState(greetingTemplates)
+                // 背景图与画廊大图都是深色底，状态栏必须用浅色图标；普通主题页面跟随明暗模式。
+                val artworkChrome = pendingBackgroundCrop == null && (
+                    isImmersiveArtwork ||
+                        selectedItem == DrawerItem.PartnerSchedule ||
+                        (selectedItem == DrawerItem.Schedule && showBackground)
+                    )
 
-                LaunchedEffect(drawerState) {
-                    snapshotFlow { drawerState.targetValue }
-                        .distinctUntilChanged()
-                        .collect { target ->
-                            if (target != DrawerValue.Open) return@collect
-                            greetingAnimationRunId++
-                            if (!latestGreetingEnabled) {
-                                drawerGreeting = DrawerGreeting(
-                                    text = DrawerGreetingPlanner.STATIC_SLOGAN,
-                                    category = null,
-                                    animate = false
-                                )
-                                return@collect
-                            }
-                            // 打开抽屉时统一捕获当前时间，避免跨分钟或跨日期时各字段使用不同时间点。
-                            val greetingNow = LocalDateTime.now()
-                            val nextGreeting = greetingPlanner.next(
-                                context = DrawerGreetingContext(
-                                    studentName = latestStudentName,
-                                    exams = latestGreetingExams,
-                                    now = greetingNow,
-                                    semesterStart = latestSemesterStart
-                                        .takeIf { latestAuthenticatedStudentNumber.isNotBlank() },
-                                    semesterEnd = latestSemesterEnd
-                                        .takeIf { latestAuthenticatedStudentNumber.isNotBlank() },
-                                    calendarDay = TimorHolidayCalendarParser.resolveCachedDay(
-                                        json = latestGreetingHolidayCache.first,
-                                        cacheDate = latestGreetingHolidayCache.second,
-                                        date = greetingNow.toLocalDate()
-                                    )
-                                ),
-                                templates = latestGreetingTemplates,
-                                previousText = drawerGreeting.text
-                            )
-                            drawerGreeting = nextGreeting
-                        }
-                }
-
-                DisposableEffect(selectedItem, pendingBackgroundCrop, isImmersiveArtwork) {
+                DisposableEffect(artworkChrome, darkTheme) {
                     applySystemBarStyle(
-                        lightIcons = pendingBackgroundCrop == null && !isSchedulePage && !isImmersiveArtwork
+                        lightIcons = artworkChrome,
+                        darkTheme = darkTheme
                     )
                     onDispose { }
                 }
@@ -586,21 +549,6 @@ class MainActivity : ComponentActivity() {
                 val updateAvailableVersion by container.settingsStore.updateAvailableVersion.collectAsStateWithLifecycle(initialValue = "")
                 val showUpdateDot = updateAvailableVersion.isNotBlank()
                     && UpdateChecker.compareVersions(updateAvailableVersion, BuildConfig.VERSION_NAME) > 0
-                val cachedNoticesJson by container.settingsStore.cachedNoticesJson.collectAsStateWithLifecycle(initialValue = "")
-                val readNoticeIds by container.settingsStore.readNoticeIds.collectAsStateWithLifecycle(initialValue = emptySet())
-                val dismissedNoticePopupIds by container.settingsStore.dismissedNoticePopupIds.collectAsStateWithLifecycle(initialValue = emptySet())
-                val cachedNotices = remember(cachedNoticesJson) {
-                    NoticeChecker.parseNotices(cachedNoticesJson)
-                }
-                val noticeLoadState = resolveNoticeLoadState(
-                    cachedNotices = cachedNotices,
-                    refreshedNotices = refreshedNotices,
-                    refreshFinished = initialNoticeCheckFinished,
-                    refreshFailed = noticeRefreshFailed
-                )
-                val notices = (noticeLoadState as? NoticeLoadState.Content)?.notices.orEmpty()
-                val currentNoticeIds = notices.map { it.id }.toSet()
-                val showNoticeDot = hasUnreadNotices(currentNoticeIds, readNoticeIds)
 
                 LaunchedEffect(Unit) {
                     val info = container.updateChecker.check(BuildConfig.VERSION_NAME)
@@ -615,89 +563,28 @@ class MainActivity : ComponentActivity() {
 
                 }
 
-                LaunchedEffect(noticeRefreshRequestId) {
-                    // 通知刷新与版本检查相互独立，避免任一服务超时阻塞另一个入口。
-                    initialNoticeCheckFinished = false
-                    noticeRefreshFailed = false
-                    val result = container.noticeChecker.check()
-                    if (result != null) {
-                        refreshedNotices = result.notices
-                        container.settingsStore.setCachedNoticesJson(result.rawJson)
-                    } else {
-                        noticeRefreshFailed = true
-                    }
-                    initialNoticeCheckFinished = true
-                }
-
-                LaunchedEffect(selectedItem, currentNoticeIds) {
-                    if (selectedItem == DrawerItem.Notice) {
-                        container.settingsStore.markNoticesRead(currentNoticeIds)
-                    }
-                }
-
-                LaunchedEffect(
-                    initialNoticeCheckFinished,
-                    notices,
-                    dismissedNoticePopupIds,
-                    noticePopupSessionDismissedIds,
-                    showUpdateDialog,
-                    showNoticePopup
-                ) {
-                    if (initialNoticeCheckFinished && showUpdateDialog == null && showNoticePopup == null) {
-                        val alreadyShownIds = dismissedNoticePopupIds + noticePopupSessionDismissedIds
-                        val latestNotice = notices.firstOrNull()
-                        if (latestNotice != null && latestNotice.popup && latestNotice.id !in alreadyShownIds) {
-                            showNoticePopup = latestNotice
-                        }
-                    }
-                }
-
                 ModalNavigationDrawer(
                     drawerState = drawerState,
                     gesturesEnabled = !drawerGestureBlocked,
                     drawerContent = {
                         ModalDrawerSheet(
                             modifier = Modifier.fillMaxWidth(0.75f),
-                            drawerContainerColor = Color(0xFFE8E4D6),
-                            drawerContentColor = Color(0xFF141821)
+                            drawerContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                            drawerContentColor = MaterialTheme.colorScheme.onSurface
                         ) {
-                            DrawerHeader(
-                                greetingEnabled = greetingEnabled,
-                                greeting = if (greetingEnabled) {
-                                    drawerGreeting
-                                } else {
-                                    DrawerGreeting(
-                                        text = DrawerGreetingPlanner.STATIC_SLOGAN,
-                                        category = null,
-                                        animate = false
-                                    )
-                                },
-                                animationRunId = greetingAnimationRunId
-                            )
-                            HorizontalDivider(color = Color(0xFFDDE2EA))
+                            DrawerHeader()
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .weight(1f)
-                                    .background(Color(0xFFF6F4EF))
                             ) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                LazyColumn {
-                                    // 常用
-                                    item {
-                                        Text(
-                                            "常用",
-                                            color = Color(0xFF3F7DF6),
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            modifier = Modifier.padding(start = 24.dp, top = 4.dp, bottom = 4.dp)
-                                        )
-                                    }
-items(listOf(DrawerItem.Schedule, DrawerItem.Exam, DrawerItem.StudyPlan, DrawerItem.SemesterOverview, DrawerItem.Import)) { item ->
+                                LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
+                                    item { DrawerSectionLabel("常用") }
+                                    items(listOf(DrawerItem.Schedule, DrawerItem.Exam, DrawerItem.StudyPlan, DrawerItem.SemesterOverview, DrawerItem.Import)) { item ->
                                         DrawerMenuItem(
                                             item = item,
                                             isSelected = selectedItem == item,
-                                            showDot = item == DrawerItem.About && showUpdateDot,
                                             enabled = item.isEnabledFor(campusType),
                                             unsupportedHint = item.unsupportedHintFor(campusType),
                                             onClick = {
@@ -707,16 +594,7 @@ items(listOf(DrawerItem.Schedule, DrawerItem.Exam, DrawerItem.StudyPlan, DrawerI
                                             }
                                         )
                                     }
-                                    // 成绩
-                                    item {
-                                        Text(
-                                            "成绩",
-                                            color = Color(0xFF3F7DF6),
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            modifier = Modifier.padding(start = 24.dp, top = 12.dp, bottom = 4.dp)
-                                        )
-                                    }
+                                    item { DrawerSectionLabel("成绩") }
                                     items(listOf(DrawerItem.Score, DrawerItem.ProfessionalScore, DrawerItem.GradeExam, DrawerItem.FitnessScore)) { item ->
                                         DrawerMenuItem(
                                             item = item,
@@ -734,16 +612,7 @@ items(listOf(DrawerItem.Schedule, DrawerItem.Exam, DrawerItem.StudyPlan, DrawerI
                                             }
                                         )
                                     }
-                                    // 校园
-                                    item {
-                                        Text(
-                                            "校园",
-                                            color = Color(0xFF3F7DF6),
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            modifier = Modifier.padding(start = 24.dp, top = 12.dp, bottom = 4.dp)
-                                        )
-                                    }
+                                    item { DrawerSectionLabel("校园") }
                                     items(campusDrawerItems(campusType)) { item ->
                                         DrawerMenuItem(
                                             item = item,
@@ -757,22 +626,12 @@ items(listOf(DrawerItem.Schedule, DrawerItem.Exam, DrawerItem.StudyPlan, DrawerI
                                             }
                                         )
                                     }
-                                    // 其他
-                                    item {
-                                        Text(
-                                            "其他",
-                                            color = Color(0xFF3F7DF6),
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            modifier = Modifier.padding(start = 24.dp, top = 12.dp, bottom = 4.dp)
-                                        )
-                                    }
+                                    item { DrawerSectionLabel("其他") }
                                     items(otherDrawerItems) { item ->
                                         DrawerMenuItem(
                                             item = item,
                                             isSelected = selectedItem == item,
-                                            showDot = (item == DrawerItem.About && showUpdateDot)
-                                                || (item == DrawerItem.Notice && showNoticeDot),
+                                            showDot = item == DrawerItem.About && showUpdateDot,
                                             onClick = {
                                                 selectedItem = item
                                                 settingsSubPage = SettingsSubPage.ROOT
@@ -793,7 +652,6 @@ items(listOf(DrawerItem.Schedule, DrawerItem.Exam, DrawerItem.StudyPlan, DrawerI
                                     title = {
                                         Text(
                                             if (selectedItem == DrawerItem.Settings) settingsSubPage.title else selectedItem.title,
-                                            color = Color(0xFF141821),
                                             fontWeight = FontWeight.SemiBold
                                         )
                                     },
@@ -807,7 +665,6 @@ items(listOf(DrawerItem.Schedule, DrawerItem.Exam, DrawerItem.StudyPlan, DrawerI
                                             Icon(
                                                 imageVector = if (settingsSubPage != SettingsSubPage.ROOT) Icons.AutoMirrored.Outlined.ArrowBack else Icons.Outlined.Menu,
                                                 contentDescription = if (settingsSubPage != SettingsSubPage.ROOT) "返回" else "菜单",
-                                                tint = Color(0xFF141821),
                                                 modifier = Modifier.size(26.dp)
                                             )
                                         }
@@ -905,8 +762,8 @@ items(listOf(DrawerItem.Schedule, DrawerItem.Exam, DrawerItem.StudyPlan, DrawerI
                                                         badge = {
                                                             badgeText?.let { count ->
                                                                 Badge(
-                                                                    containerColor = Color(0xFF3F7DF6),
-                                                                    contentColor = Color.White
+                                                                    containerColor = MaterialTheme.colorScheme.primary,
+                                                                    contentColor = MaterialTheme.colorScheme.onPrimary
                                                                 ) { Text(count) }
                                                             }
                                                         }
@@ -917,8 +774,7 @@ items(listOf(DrawerItem.Schedule, DrawerItem.Exam, DrawerItem.StudyPlan, DrawerI
                                                                 "缓存管理，暂无原图缓存"
                                                             } else {
                                                                 "缓存管理，共 $downloadedCount 项"
-                                                            },
-                                                            tint = Color(0xFF141821)
+                                                            }
                                                         )
                                                     }
                                                 }
@@ -929,14 +785,12 @@ items(listOf(DrawerItem.Schedule, DrawerItem.Exam, DrawerItem.StudyPlan, DrawerI
                                                     if (galleryState.isLoading) {
                                                         CircularProgressIndicator(
                                                             modifier = Modifier.size(22.dp),
-                                                            strokeWidth = 2.dp,
-                                                            color = Color(0xFF141821)
+                                                            strokeWidth = 2.dp
                                                         )
                                                     } else {
                                                         Icon(
                                                             Icons.Outlined.Refresh,
-                                                            contentDescription = "刷新画廊",
-                                                            tint = Color(0xFF141821)
+                                                            contentDescription = "刷新画廊"
                                                         )
                                                     }
                                                 }
@@ -945,7 +799,10 @@ items(listOf(DrawerItem.Schedule, DrawerItem.Exam, DrawerItem.StudyPlan, DrawerI
                                         }
                                     },
                                     colors = TopAppBarDefaults.topAppBarColors(
-                                        containerColor = Color(0xFFE8E4D6)
+                                        containerColor = MaterialTheme.colorScheme.surface,
+                                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                                        navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                                        actionIconContentColor = MaterialTheme.colorScheme.onSurface
                                     )
                                 )
                             }
@@ -957,11 +814,11 @@ items(listOf(DrawerItem.Schedule, DrawerItem.Exam, DrawerItem.StudyPlan, DrawerI
                             ScaffoldDefaults.contentWindowInsets
                         },
                         containerColor = if (isImmersiveArtwork) {
-                            Color(0xFF101116)
+                            MaterialTheme.colorScheme.surfaceContainerLowest
                         } else if (isSchedulePage) {
-                            Color(0xFF07111F)
+                            MaterialTheme.colorScheme.background
                         } else {
-                            Color(0xFFF6F4EF)
+                            MaterialTheme.colorScheme.background
                         }
                     ) { padding ->
                         Box(modifier = Modifier.padding(padding)) {
@@ -972,8 +829,6 @@ items(listOf(DrawerItem.Schedule, DrawerItem.Exam, DrawerItem.StudyPlan, DrawerI
                                     onFirstFrameReady = ::releaseFirstFrame,
                                     onImportClick = { selectedItem = DrawerItem.Import },
                                     onExamClick = { selectedItem = DrawerItem.Exam },
-                                    onPickBackground = { backgroundPicker.launch(arrayOf("image/*")) },
-                                    onClearBackground = clearBackground,
                                     onDrawerOpen = { scope.launch { drawerState.open() } }
                                 )
                                 DrawerItem.PartnerSchedule -> PartnerScheduleDestination(
@@ -1029,10 +884,48 @@ items(listOf(DrawerItem.Schedule, DrawerItem.Exam, DrawerItem.StudyPlan, DrawerI
                                     backgroundStore = container.backgroundStore,
                                     remoteBackgroundGalleryViewModel = remoteBackgroundGalleryViewModel,
                                     subPage = settingsSubPage,
-                                    greetingEnabled = greetingEnabled,
-                                    onGreetingEnabledChange = { enabled ->
+                                    themeMode = themeMode,
+                                    dynamicColorEnabled = dynamicColorEnabled,
+                                    onThemeModeChange = { mode ->
+                                        scope.launch { container.settingsStore.setThemeMode(mode) }
+                                    },
+                                    onDynamicColorChange = { enabled ->
                                         scope.launch {
-                                            container.settingsStore.setGreetingEnabled(enabled)
+                                            container.settingsStore.setDynamicColorEnabled(enabled)
+                                        }
+                                    },
+                                    showBackground = showBackground,
+                                    onShowBackgroundChange = { enabled ->
+                                        scope.launch {
+                                            container.settingsStore.setShowScheduleBackground(enabled)
+                                        }
+                                    },
+                                    reminderEnabled = reminderEnabled,
+                                    reminderMinutes = reminderMinutes,
+                                    notificationPermissionGranted = notificationPermissionGranted,
+                                    onReminderEnabledChange = { enabled ->
+                                        scope.launch {
+                                            container.settingsStore.setClassReminderEnabled(enabled)
+                                        }
+                                        if (enabled &&
+                                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                            !notificationPermissionGranted
+                                        ) {
+                                            notificationPermissionLauncher.launch(
+                                                Manifest.permission.POST_NOTIFICATIONS
+                                            )
+                                        }
+                                    },
+                                    onReminderMinutesChange = { minutes ->
+                                        scope.launch {
+                                            container.settingsStore.setClassReminderMinutes(minutes)
+                                        }
+                                    },
+                                    onRequestNotificationPermission = {
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                            notificationPermissionLauncher.launch(
+                                                Manifest.permission.POST_NOTIFICATIONS
+                                            )
                                         }
                                     },
                                     onPickBackground = { backgroundPicker.launch(arrayOf("image/*")) },
@@ -1049,12 +942,6 @@ items(listOf(DrawerItem.Schedule, DrawerItem.Exam, DrawerItem.StudyPlan, DrawerI
                                     },
                                     onSubPageChange = { settingsSubPage = it },
                                     onReset = { showResetConfirm = true }
-                                )
-                                DrawerItem.Notice -> NoticeScreen(
-                                    state = noticeLoadState,
-                                    onRetry = {
-                                        noticeRefreshRequestId++
-                                    }
                                 )
                                 DrawerItem.SemesterOverview -> SemesterOverviewScreen(viewModel = semesterOverviewViewModel)
                                 DrawerItem.FAQ -> FaqScreen()
@@ -1133,6 +1020,8 @@ items(listOf(DrawerItem.Schedule, DrawerItem.Exam, DrawerItem.StudyPlan, DrawerI
                                             } else {
                                                 container.settingsStore.setCustomBackground(finalSource.uri, crop)
                                             }
+                                            // 用户主动选了背景，就默认开启显示；之后仍可在设置里单独关闭。
+                                            container.settingsStore.setShowScheduleBackground(true)
                                             committed = true
                                         }
                                         pendingBackgroundCrop = null
@@ -1190,38 +1079,13 @@ items(listOf(DrawerItem.Schedule, DrawerItem.Exam, DrawerItem.StudyPlan, DrawerI
                     )
                 }
 
-                showNoticePopup?.let { popupNotice ->
-                    NoticePopupDialog(
-                        notice = popupNotice,
-                        onDismiss = {
-                            val ids = setOf(popupNotice.id)
-                            noticePopupSessionDismissedIds = noticePopupSessionDismissedIds + ids
-                            showNoticePopup = null
-                            scope.launch {
-                                container.settingsStore.markNoticePopupsDismissed(ids)
-                            }
-                        },
-                        onOpenNotices = {
-                            val ids = setOf(popupNotice.id)
-                            noticePopupSessionDismissedIds = noticePopupSessionDismissedIds + ids
-                            showNoticePopup = null
-                            selectedItem = DrawerItem.Notice
-                            scope.launch {
-                                container.settingsStore.markNoticePopupsDismissed(ids)
-                                container.settingsStore.markNoticesRead(currentNoticeIds)
-                            }
-                        }
-                    )
-                }
-
                 if (showResetConfirm) {
                     AlertDialog(
                         onDismissRequest = { showResetConfirm = false },
                         title = { Text("重置应用") },
                         text = { Text("将清除所有数据（课表、成绩、考试、教学计划、设置、登录凭证），恢复到初次使用状态。此操作不可撤销，确定继续吗？") },
                         confirmButton = {
-                            Text("确认重置", color = Color(0xFFDC2626),
-                                modifier = Modifier.clickable {
+                            TextButton(onClick = {
                                     showResetConfirm = false
                                     scope.launch {
                                         resetApplicationDataSafely(
@@ -1251,10 +1115,15 @@ items(listOf(DrawerItem.Schedule, DrawerItem.Exam, DrawerItem.StudyPlan, DrawerI
                                             }
                                         )
                                     }
-                                }.padding(8.dp))
+                                }
+                            ) {
+                                Text("确认重置")
+                            }
                         },
                         dismissButton = {
-                            Text("取消", modifier = Modifier.clickable { showResetConfirm = false }.padding(8.dp))
+                            TextButton(onClick = { showResetConfirm = false }) {
+                                Text("取消")
+                            }
                         }
                     )
                 }
@@ -1291,19 +1160,16 @@ items(listOf(DrawerItem.Schedule, DrawerItem.Exam, DrawerItem.StudyPlan, DrawerI
         super.onDestroy()
     }
 
-    private fun applySystemBarStyle(lightIcons: Boolean) {
-        val lightFlag = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+    private fun applySystemBarStyle(lightIcons: Boolean, darkTheme: Boolean) {
         window.statusBarColor = AndroidColor.TRANSPARENT
-        val visibility = window.decorView.systemUiVisibility
-        window.decorView.systemUiVisibility = if (lightIcons) {
-            visibility or lightFlag   // dark icons for light page backgrounds
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        // lightIcons = true 表示背景是深色（背景图/画廊大图），状态栏要用白色图标。
+        controller.isAppearanceLightStatusBars = !lightIcons
+        controller.isAppearanceLightNavigationBars = !lightIcons
+        window.navigationBarColor = if (lightIcons || darkTheme) {
+            AndroidColor.rgb(0x15, 0x13, 0x0C)
         } else {
-            visibility and lightFlag.inv()  // white icons for dark page backgrounds
-        }
-        window.navigationBarColor = if (lightIcons) {
-            AndroidColor.rgb(0xF6, 0xF4, 0xEF)  // matches menu page F6F4EF
-        } else {
-            AndroidColor.rgb(17, 24, 39)  // matches schedule dark background
+            AndroidColor.rgb(0xFF, 0xF9, 0xEE)
         }
     }
 
@@ -1318,8 +1184,6 @@ private fun ScheduleDestination(
     onFirstFrameReady: () -> Unit,
     onImportClick: () -> Unit,
     onExamClick: () -> Unit,
-    onPickBackground: () -> Unit,
-    onClearBackground: () -> Unit,
     onDrawerOpen: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -1354,7 +1218,8 @@ private fun ScheduleDestination(
     LaunchedEffect(uiState.isInitialized, uiState.customBackgroundUri, backgroundBitmap) {
         if (scheduleFirstFrameReady(
                 isInitialized = uiState.isInitialized,
-                backgroundUri = uiState.customBackgroundUri,
+                // 背景关闭时不需要等待图片解码，首帧立刻放行。
+                backgroundUri = if (uiState.showBackground) uiState.customBackgroundUri else "",
                 customBitmapAvailable = backgroundBitmap != null
             )
         ) {
@@ -1365,8 +1230,6 @@ private fun ScheduleDestination(
         viewModel = viewModel,
         uiState = uiState,
         customBackgroundBitmap = backgroundBitmap,
-        onPickBackground = onPickBackground,
-        onClearBackground = onClearBackground,
         onImportClick = onImportClick,
         onExamClick = onExamClick,
         onDrawerOpen = onDrawerOpen
@@ -1428,8 +1291,18 @@ private fun ScheduleSettingsDestination(
     backgroundStore: ScheduleBackgroundStore,
     remoteBackgroundGalleryViewModel: RemoteBackgroundGalleryViewModel?,
     subPage: SettingsSubPage,
-    greetingEnabled: Boolean,
-    onGreetingEnabledChange: (Boolean) -> Unit,
+    themeMode: ThemeMode,
+    dynamicColorEnabled: Boolean,
+    onThemeModeChange: (ThemeMode) -> Unit,
+    onDynamicColorChange: (Boolean) -> Unit,
+    showBackground: Boolean,
+    onShowBackgroundChange: (Boolean) -> Unit,
+    reminderEnabled: Boolean,
+    reminderMinutes: Int,
+    notificationPermissionGranted: Boolean,
+    onReminderEnabledChange: (Boolean) -> Unit,
+    onReminderMinutesChange: (Int) -> Unit,
+    onRequestNotificationPermission: () -> Unit,
     onPickBackground: () -> Unit,
     onRecropBackground: (PendingBackgroundCrop) -> Unit,
     onClearBackground: () -> Unit,
@@ -1481,8 +1354,18 @@ private fun ScheduleSettingsDestination(
             showNoonEnabled = campusCapabilities.hasNoonSections,
             showGridLines = uiState.showGridLines,
             onShowGridLinesChange = viewModel::setShowGridLines,
-            greetingEnabled = greetingEnabled,
-            onGreetingEnabledChange = onGreetingEnabledChange,
+            themeMode = themeMode,
+            dynamicColorEnabled = dynamicColorEnabled,
+            onThemeModeChange = onThemeModeChange,
+            onDynamicColorChange = onDynamicColorChange,
+            showBackground = showBackground,
+            onShowBackgroundChange = onShowBackgroundChange,
+            reminderEnabled = reminderEnabled,
+            reminderMinutes = reminderMinutes,
+            notificationPermissionGranted = notificationPermissionGranted,
+            onReminderEnabledChange = onReminderEnabledChange,
+            onReminderMinutesChange = onReminderMinutesChange,
+            onRequestNotificationPermission = onRequestNotificationPermission,
             customBackgroundUri = uiState.customBackgroundUri,
             customBackgroundCrop = uiState.customBackgroundCrop,
             backgroundDimAmount = uiState.backgroundDimAmount,
@@ -1511,88 +1394,38 @@ private fun ScheduleSettingsDestination(
 }
 
 @Composable
-private fun DrawerHeader(
-    greetingEnabled: Boolean,
-    greeting: DrawerGreeting,
-    animationRunId: Int
-) {
-    Column(
+private fun DrawerHeader() {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(horizontal = 20.dp, vertical = 24.dp)
+            .padding(horizontal = 20.dp, vertical = 20.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        when (drawerHeaderLayoutMode(greetingEnabled)) {
-            DrawerHeaderLayoutMode.FULL_WIDTH_GREETING -> {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Image(
-                        painter = painterResource(R.drawable.brand_menu_logo),
-                        contentDescription = "桂系一站式标志",
-                        modifier = Modifier.size(38.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        "桂系一站式",
-                        color = Color(0xFF141821),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                TypewriterGreetingText(
-                    fullText = greeting.text,
-                    animate = greeting.animate,
-                    animationRunId = animationRunId
-                )
-            }
-
-            DrawerHeaderLayoutMode.BRAND_TEXT_COLUMN -> Row(
-                modifier = Modifier.fillMaxWidth(),
-                // 与微信端保持一致：图标对齐品牌标题，而不是相对“标题＋标语”整列居中。
-                verticalAlignment = Alignment.Top
-            ) {
-                Image(
-                    painter = painterResource(R.drawable.brand_menu_logo),
-                    contentDescription = "桂系一站式标志",
-                    modifier = Modifier.size(38.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                // 关闭问候语后，品牌名与静态标语共用右侧文字列，避免标语落到图标下方。
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        "桂系一站式",
-                        color = Color(0xFF141821),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    TypewriterGreetingText(
-                        fullText = greeting.text,
-                        animate = false,
-                        animationRunId = animationRunId,
-                        modifier = Modifier,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-        }
+        Image(
+            painter = painterResource(R.drawable.brand_menu_logo),
+            contentDescription = "桂系一站式标志",
+            modifier = Modifier.size(40.dp)
+        )
+        Spacer(modifier = Modifier.width(14.dp))
+        Text(
+            "桂系一站式",
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
-internal enum class DrawerHeaderLayoutMode {
-    FULL_WIDTH_GREETING,
-    BRAND_TEXT_COLUMN
+@Composable
+private fun DrawerSectionLabel(text: String) {
+    Text(
+        text = text,
+        color = MaterialTheme.colorScheme.primary,
+        style = MaterialTheme.typography.labelLarge,
+        modifier = Modifier.padding(start = 28.dp, end = 28.dp, top = 12.dp, bottom = 4.dp)
+    )
 }
-
-internal fun drawerHeaderLayoutMode(greetingEnabled: Boolean): DrawerHeaderLayoutMode =
-    if (greetingEnabled) {
-        DrawerHeaderLayoutMode.FULL_WIDTH_GREETING
-    } else {
-        DrawerHeaderLayoutMode.BRAND_TEXT_COLUMN
-    }
 
 @Composable
 private fun DrawerMenuItem(
@@ -1608,39 +1441,49 @@ private fun DrawerMenuItem(
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
-    val bgColor = if (isSelected && enabled) Color(0xFF3F7DF6).copy(alpha = 0.10f) else Color.Transparent
-    val contentColor = when {
-        !enabled -> Color(0xFF667085).copy(alpha = 0.38f)
-        isSelected -> Color(0xFF3F7DF6)
-        else -> Color(0xFF667085)
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 2.dp)
-            .background(bgColor, RoundedCornerShape(10.dp))
-            .clickable {
-                if (enabled) {
-                    onClick()
-                } else if (!unsupportedHint.isNullOrBlank()) {
-                    android.widget.Toast.makeText(context, unsupportedHint, android.widget.Toast.LENGTH_SHORT).show()
-                }
-            }
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(item.icon, contentDescription = item.title, tint = contentColor, modifier = Modifier.size(24.dp))
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(item.title, color = contentColor, fontSize = 16.sp, fontWeight = if (isSelected && enabled) FontWeight.SemiBold else FontWeight.Normal, modifier = Modifier.weight(1f))
-        if (showDot) {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .background(Color(0xFFDC2626), RoundedCornerShape(4.dp))
+    val colorScheme = MaterialTheme.colorScheme
+    NavigationDrawerItem(
+        label = {
+            Text(
+                item.title,
+                fontWeight = if (isSelected && enabled) FontWeight.SemiBold else FontWeight.Normal
             )
+        },
+        selected = isSelected && enabled,
+        icon = { Icon(item.icon, contentDescription = null) },
+        badge = if (showDot) {
+            { Badge(containerColor = colorScheme.error) }
+        } else {
+            null
+        },
+        colors = NavigationDrawerItemDefaults.colors(
+            selectedContainerColor = colorScheme.primaryContainer,
+            selectedTextColor = colorScheme.onPrimaryContainer,
+            selectedIconColor = colorScheme.onPrimaryContainer,
+            unselectedTextColor = if (enabled) {
+                colorScheme.onSurface
+            } else {
+                colorScheme.onSurface.copy(alpha = 0.38f)
+            },
+            unselectedIconColor = if (enabled) {
+                colorScheme.onSurfaceVariant
+            } else {
+                colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+            }
+        ),
+        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+        onClick = {
+            if (enabled) {
+                onClick()
+            } else if (!unsupportedHint.isNullOrBlank()) {
+                android.widget.Toast.makeText(
+                    context,
+                    unsupportedHint,
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
         }
-    }
+    )
 }
 
 // ---- Settings Page ----
@@ -1655,8 +1498,18 @@ private fun SettingsPage(
     showNoonEnabled: Boolean = true,
     showGridLines: Boolean = false,
     onShowGridLinesChange: (Boolean) -> Unit = {},
-    greetingEnabled: Boolean = true,
-    onGreetingEnabledChange: (Boolean) -> Unit = {},
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
+    dynamicColorEnabled: Boolean = false,
+    onThemeModeChange: (ThemeMode) -> Unit = {},
+    onDynamicColorChange: (Boolean) -> Unit = {},
+    showBackground: Boolean = false,
+    onShowBackgroundChange: (Boolean) -> Unit = {},
+    reminderEnabled: Boolean = false,
+    reminderMinutes: Int = 10,
+    notificationPermissionGranted: Boolean = false,
+    onReminderEnabledChange: (Boolean) -> Unit = {},
+    onReminderMinutesChange: (Int) -> Unit = {},
+    onRequestNotificationPermission: () -> Unit = {},
     customBackgroundUri: String = "",
     customBackgroundCrop: NormalizedCropRect? = null,
     backgroundDimAmount: Float = 0.5f,
@@ -1673,14 +1526,11 @@ private fun SettingsPage(
     onHolidayAdjustments: () -> Unit = {},
     onReset: () -> Unit = {}
 ) {
-    val settingsBg = Color(0xFFF6F4EF)
-    val settingsPrimary = Color(0xFF141821)
-    val settingsSecondary = Color(0xFF667085)
-    val settingsCardBg = Color(0xFFFFFEFB)
     val context = LocalContext.current
     val metrics = context.resources.displayMetrics
     var backgroundPreviewRevision by remember(customBackgroundUri, customBackgroundCrop) { mutableIntStateOf(0) }
     var previewDimAmount by remember(backgroundDimAmount) { mutableStateOf(backgroundDimAmount) }
+    var previewReminderMinutes by remember(reminderMinutes) { mutableIntStateOf(reminderMinutes) }
     LaunchedEffect(customBackgroundUri, customBackgroundCrop) {
         if (
             shouldUseCustomBackground(customBackgroundUri) &&
@@ -1710,361 +1560,373 @@ private fun SettingsPage(
             )
         } else null
     }
+    val dynamicColorAvailable = isDynamicColorAvailable()
 
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(settingsBg)
-            .verticalScroll(rememberScrollState())
+            .background(MaterialTheme.colorScheme.background),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            start = 20.dp,
+            end = 20.dp,
+            top = 12.dp,
+            bottom = 32.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            // Display section
-            Text("显示", color = settingsSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = settingsCardBg,
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("显示周末", color = settingsPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                    Switch(checked = showWeekend, onCheckedChange = onShowWeekendChange)
-                }
+        item { SettingsSectionTitle("显示") }
+        item {
+            SettingsCard {
+                SettingsSwitchRow(
+                    title = "显示周末",
+                    checked = showWeekend,
+                    onCheckedChange = onShowWeekendChange
+                )
+                SettingsDivider()
+                SettingsSwitchRow(
+                    title = "显示中午",
+                    supporting = if (showNoonEnabled) null else "当前来源没有中午节次",
+                    checked = showNoon,
+                    enabled = showNoonEnabled,
+                    onCheckedChange = onShowNoonChange
+                )
+                SettingsDivider()
+                SettingsSwitchRow(
+                    title = "显示网格线",
+                    checked = showGridLines,
+                    onCheckedChange = onShowGridLinesChange
+                )
             }
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = settingsCardBg,
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // 禁用时标题同步调淡：只置灰开关本身容易让人以为是开关坏了，
-                    // 文字一起变淡才读得出「这一项对当前来源不适用」。
-                    Text(
-                        "显示中午",
-                        color = if (showNoonEnabled) settingsPrimary else settingsSecondary,
-                        fontSize = 15.sp,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Switch(
-                        checked = showNoon,
-                        onCheckedChange = onShowNoonChange,
-                        enabled = showNoonEnabled
-                    )
-                }
-            }
+        }
 
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = settingsCardBg,
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("显示网格线", color = settingsPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                    Switch(checked = showGridLines, onCheckedChange = onShowGridLinesChange)
-                }
-            }
-
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = settingsCardBg,
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("问候语", color = settingsPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                    Switch(checked = greetingEnabled, onCheckedChange = onGreetingEnabledChange)
-                }
-            }
-            Text("课表外观", color = settingsSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = settingsCardBg,
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onCourseColors)
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("课程卡片颜色", color = settingsPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                    Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = settingsSecondary, modifier = Modifier.size(20.dp))
-                }
-            }
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = settingsCardBg,
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(enabled = classPeriodsEnabled, onClick = onClassPeriods)
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
+        item { SettingsSectionTitle("主题") }
+        item {
+            SettingsCard {
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
-                        "上课时间",
-                        color = if (classPeriodsEnabled) settingsPrimary else settingsSecondary,
-                        fontSize = 15.sp,
-                        modifier = Modifier.weight(1f)
+                        "主题模式",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.bodyLarge
                     )
-                    Icon(
-                        Icons.Outlined.ChevronRight,
-                        contentDescription = null,
-                        tint = if (classPeriodsEnabled) settingsSecondary else settingsSecondary.copy(alpha = 0.45f),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = settingsCardBg,
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onHolidayAdjustments)
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("调休调课", color = settingsPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                    Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = settingsSecondary, modifier = Modifier.size(20.dp))
-                }
-            }
-
-            // Background section
-            Text("背景", color = settingsSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-            Surface(
-                modifier = Modifier.fillMaxWidth().height(150.dp),
-                color = Color(0xFF111827),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    ScheduleBackgroundImage(
-                        modifier = Modifier.matchParentSize(),
-                        customBackgroundUri = customBackgroundUri,
-                        customBackgroundBitmap = previewBitmap,
-                        dimAmount = previewDimAmount
-                    )
-                    Column(
-                        modifier = Modifier.align(Alignment.Center).padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text("背景效果预览", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        Text("软件工程 · 08:00", color = Color.White.copy(alpha = 0.82f), fontSize = 13.sp)
-                    }
-                }
-            }
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = settingsCardBg,
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("背景蒙黑度", color = settingsPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                        Text(
-                            "${(previewDimAmount * 100).roundToInt()}%",
-                            color = settingsSecondary,
-                            fontSize = 13.sp
-                        )
-                    }
-                    Slider(
-                        value = previewDimAmount,
-                        onValueChange = { previewDimAmount = snapBackgroundDimAmount(it) },
-                        onValueChangeFinished = { onBackgroundDimAmountChange(previewDimAmount) },
-                        valueRange = 0f..0.8f,
-                        steps = 15
-                    )
-                }
-            }
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = settingsCardBg,
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Column {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(onClick = onBuiltInBackgrounds)
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("画廊", color = settingsPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                        Icon(
-                            Icons.Outlined.ChevronRight,
-                            contentDescription = null,
-                            tint = settingsSecondary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    HorizontalDivider(color = Color(0xFFEDE8DE))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(onClick = onPickBackground)
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("自定义背景", color = settingsPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                        Icon(
-                            Icons.Outlined.ChevronRight,
-                            contentDescription = null,
-                            tint = settingsSecondary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    if (hasCustomBackground) {
-                        HorizontalDivider(color = Color(0xFFEDE8DE))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(onClick = onRecropBackground)
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("重新裁剪", color = settingsPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                            Icon(
-                                Icons.Outlined.ChevronRight,
-                                contentDescription = null,
-                                tint = settingsSecondary,
-                                modifier = Modifier.size(20.dp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(
+                            ThemeMode.SYSTEM to "跟随系统",
+                            ThemeMode.LIGHT to "浅色",
+                            ThemeMode.DARK to "深色"
+                        ).forEach { (mode, label) ->
+                            FilterChip(
+                                selected = themeMode == mode,
+                                onClick = { onThemeModeChange(mode) },
+                                label = { Text(label) }
                             )
                         }
-                        HorizontalDivider(color = Color(0xFFEDE8DE))
-                        Row(
+                    }
+                }
+                SettingsDivider()
+                SettingsSwitchRow(
+                    title = "动态颜色",
+                    supporting = if (dynamicColorAvailable) {
+                        "使用系统壁纸取色（Android 12+）"
+                    } else {
+                        "需要 Android 12 及以上系统"
+                    },
+                    checked = dynamicColorEnabled,
+                    enabled = dynamicColorAvailable,
+                    onCheckedChange = onDynamicColorChange
+                )
+            }
+        }
+
+        item { SettingsSectionTitle("课表外观") }
+        item {
+            SettingsCard {
+                SettingsSwitchRow(
+                    title = "显示课表背景",
+                    supporting = "关闭后使用普通页面主题背景",
+                    checked = showBackground,
+                    onCheckedChange = onShowBackgroundChange
+                )
+                if (showBackground) {
+                    SettingsDivider()
+                    Column(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable(onClick = onClearBackground)
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .height(150.dp)
+                                .clip(MaterialTheme.shapes.medium)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                         ) {
-                            Text("恢复默认背景", color = Color(0xFFDC2626), fontSize = 15.sp, modifier = Modifier.weight(1f))
+                            ScheduleBackgroundImage(
+                                modifier = Modifier.matchParentSize(),
+                                customBackgroundUri = customBackgroundUri,
+                                customBackgroundBitmap = previewBitmap,
+                                dimAmount = previewDimAmount
+                            )
+                            Column(
+                                modifier = Modifier.align(Alignment.Center).padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    "背景效果预览",
+                                    color = Color.White,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    "软件工程 · 08:00",
+                                    color = Color.White.copy(alpha = 0.82f),
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "背景蒙黑度",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                "${(previewDimAmount * 100).roundToInt()}%",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                        Slider(
+                            value = previewDimAmount,
+                            onValueChange = { previewDimAmount = snapBackgroundDimAmount(it) },
+                            onValueChangeFinished = { onBackgroundDimAmountChange(previewDimAmount) },
+                            valueRange = 0f..0.8f,
+                            steps = 15
+                        )
+                    }
+                }
+                SettingsDivider()
+                SettingsClickRow(
+                    title = "画廊",
+                    onClick = onBuiltInBackgrounds
+                )
+                SettingsDivider()
+                SettingsClickRow(
+                    title = "自定义背景",
+                    onClick = onPickBackground
+                )
+                if (hasCustomBackground) {
+                    SettingsDivider()
+                    SettingsClickRow(
+                        title = "重新裁剪",
+                        onClick = onRecropBackground
+                    )
+                    SettingsDivider()
+                    SettingsClickRow(
+                        title = "恢复默认背景",
+                        destructive = true,
+                        onClick = onClearBackground
+                    )
+                }
+            }
+        }
+
+        item { SettingsSectionTitle("上课提醒") }
+        item {
+            SettingsCard {
+                SettingsSwitchRow(
+                    title = "上课提醒",
+                    supporting = "在课程开始前发送系统通知",
+                    checked = reminderEnabled,
+                    onCheckedChange = onReminderEnabledChange
+                )
+                if (reminderEnabled) {
+                    SettingsDivider()
+                    Column(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "提前提醒时间",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                "$previewReminderMinutes 分钟前",
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
+                        Slider(
+                            value = previewReminderMinutes.coerceIn(5, 30).toFloat(),
+                            onValueChange = { previewReminderMinutes = it.roundToInt() },
+                            onValueChangeFinished = {
+                                onReminderMinutesChange(previewReminderMinutes)
+                            },
+                            valueRange = 5f..30f,
+                            steps = 4
+                        )
+                        if (!notificationPermissionGranted) {
+                            Text(
+                                "通知权限未授予，提醒可能不会显示。",
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            TextButton(onClick = onRequestNotificationPermission) {
+                                Text("授予通知权限")
+                            }
                         }
                     }
                 }
             }
+        }
 
-            // Data management section
-            Text("数据管理", color = settingsSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = settingsCardBg,
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onReset)
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("重置应用", color = Color(0xFFDC2626), fontSize = 15.sp, modifier = Modifier.weight(1f))
-                    Text("恢复初次使用状态", color = settingsSecondary, fontSize = 12.sp)
-                }
+        item { SettingsSectionTitle("课程") }
+        item {
+            SettingsCard {
+                SettingsClickRow(
+                    title = "课程卡片颜色",
+                    onClick = onCourseColors
+                )
+                SettingsDivider()
+                SettingsClickRow(
+                    title = "上课时间",
+                    enabled = classPeriodsEnabled,
+                    onClick = onClassPeriods
+                )
+                SettingsDivider()
+                SettingsClickRow(
+                    title = "调休调课",
+                    onClick = onHolidayAdjustments
+                )
+            }
+        }
+
+        item { SettingsSectionTitle("数据管理") }
+        item {
+            SettingsCard {
+                SettingsClickRow(
+                    title = "重置应用",
+                    supporting = "恢复初次使用状态",
+                    destructive = true,
+                    onClick = onReset
+                )
             }
         }
     }
 }
 
 @Composable
-private fun TypewriterGreetingText(
-    fullText: String,
-    animate: Boolean,
-    animationRunId: Int,
-    modifier: Modifier = Modifier.fillMaxWidth(),
-    textAlign: TextAlign = TextAlign.Start
-) {
-    val context = LocalContext.current
-    val touchExplorationEnabled = remember {
-        context.getSystemService(AccessibilityManager::class.java)
-            ?.isTouchExplorationEnabled == true
-    }
-    val canAnimate = shouldRunDrawerGreetingAnimation(
-        requested = animate,
-        animatorsEnabled = ValueAnimator.areAnimatorsEnabled(),
-        touchExplorationEnabled = touchExplorationEnabled
-    )
-    var visibleText by remember(fullText, animationRunId, canAnimate) {
-        mutableStateOf(if (canAnimate) "" else fullText)
-    }
-    var typing by remember(fullText, animationRunId, canAnimate) {
-        mutableStateOf(canAnimate)
-    }
-
-    LaunchedEffect(fullText, animationRunId, canAnimate) {
-        if (!canAnimate) {
-            visibleText = fullText
-            typing = false
-            return@LaunchedEffect
-        }
-        val codePointCount = fullText.codePointCount(0, fullText.length)
-        val stepDelay = if (codePointCount == 0) 0L else {
-            minOf(50L, 1_200L / codePointCount.coerceAtLeast(1))
-        }
-        for (index in 1..codePointCount) {
-            val end = fullText.offsetByCodePoints(0, index)
-            visibleText = fullText.substring(0, end)
-            if (stepDelay > 0L) delay(stepDelay)
-        }
-        typing = false
-    }
-
+private fun SettingsSectionTitle(text: String) {
     Text(
-        text = typewriterGreetingLayoutText(visibleText, cursorVisible = typing),
-        color = Color(0xFF667085),
-        fontSize = 13.sp,
-        lineHeight = 20.sp,
-        textAlign = textAlign,
-        modifier = modifier
-            // 保留双行问候的基准高度，同时允许窄屏或长姓名自然扩展到更多行。
-            .heightIn(min = 40.dp)
-            .clearAndSetSemantics {
-                contentDescription = fullText
-            }
+        text = text,
+        color = MaterialTheme.colorScheme.primary,
+        style = MaterialTheme.typography.titleSmall,
+        modifier = Modifier.padding(start = 4.dp, top = 12.dp, bottom = 2.dp)
     )
 }
 
-/**
- * 光标隐藏时仍保留同一个字符占位，只改变颜色，避免打字结束触发重新换行和基线跳动。
- */
-internal fun typewriterGreetingLayoutText(
-    visibleText: String,
-    cursorVisible: Boolean
-) = buildAnnotatedString {
-    append(visibleText)
-    withStyle(
-        SpanStyle(color = if (cursorVisible) Color.Unspecified else Color.Transparent)
+@Composable
+private fun SettingsCard(content: @Composable () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = MaterialTheme.shapes.large
     ) {
-        append("▌")
+        Column(content = { content() })
     }
 }
 
-/**
- * 仅在读屏常用的触摸探索开启时停用打字机，避免 GKD 等普通无障碍服务误伤动画。
- */
-internal fun shouldRunDrawerGreetingAnimation(
-    requested: Boolean,
-    animatorsEnabled: Boolean,
-    touchExplorationEnabled: Boolean
-): Boolean = requested && animatorsEnabled && !touchExplorationEnabled
+@Composable
+private fun SettingsDivider() {
+    HorizontalDivider(
+        color = MaterialTheme.colorScheme.outlineVariant,
+        modifier = Modifier.padding(start = 16.dp)
+    )
+}
+
+@Composable
+private fun SettingsSwitchRow(
+    title: String,
+    supporting: String? = null,
+    checked: Boolean,
+    enabled: Boolean = true,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    val supportingSlot: (@Composable () -> Unit)? = if (supporting == null) {
+        null
+    } else {
+        { Text(supporting!!, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+    }
+    ListItem(
+        headlineContent = {
+            Text(
+                title,
+                color = if (enabled) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                }
+            )
+        },
+        supportingContent = supportingSlot,
+        trailingContent = {
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                enabled = enabled
+            )
+        },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        modifier = Modifier.clickable(enabled = enabled) { onCheckedChange(!checked) }
+    )
+}
+
+@Composable
+private fun SettingsClickRow(
+    title: String,
+    supporting: String? = null,
+    enabled: Boolean = true,
+    destructive: Boolean = false,
+    onClick: () -> Unit
+) {
+    val supportingSlot: (@Composable () -> Unit)? = if (supporting == null) {
+        null
+    } else {
+        { Text(supporting!!, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+    }
+    ListItem(
+        headlineContent = {
+            Text(
+                title,
+                color = when {
+                    destructive -> MaterialTheme.colorScheme.error
+                    enabled -> MaterialTheme.colorScheme.onSurface
+                    else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                }
+            )
+        },
+        supportingContent = supportingSlot,
+        trailingContent = {
+            Icon(
+                Icons.Outlined.ChevronRight,
+                contentDescription = null,
+                tint = if (enabled) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                },
+                modifier = Modifier.size(20.dp)
+            )
+        },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        modifier = Modifier.clickable(enabled = enabled, onClick = onClick)
+    )
+}
 
 @Composable
 private fun CourseColorsPage(
@@ -2074,8 +1936,8 @@ private fun CourseColorsPage(
     onRemoveColor: (String) -> Unit,
     onResetAll: () -> Unit
 ) {
-    val background = Color(0xFFF6F4EF)
-    val card = Color(0xFFFFFEFB)
+    val background = MaterialTheme.colorScheme.background
+    val card = MaterialTheme.colorScheme.surfaceContainerLow
     val entries = remember(courses, overrides) {
         courses.distinctBy { CourseColorMapper.colorKey(it.id, it.title) }
     }
@@ -2084,7 +1946,7 @@ private fun CourseColorsPage(
 
     if (entries.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize().background(background), contentAlignment = Alignment.Center) {
-            Text("暂未导入课表", color = Color(0xFF667085), fontSize = 15.sp)
+            Text("暂未导入课表", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 15.sp)
         }
         return
     }
@@ -2094,7 +1956,7 @@ private fun CourseColorsPage(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item { Text("已导入课程", color = Color(0xFF667085), fontSize = 13.sp, fontWeight = FontWeight.Medium) }
+        item { Text("已导入课程", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, fontWeight = FontWeight.Medium) }
         items(entries, key = { it.id }) { course ->
             val key = CourseColorMapper.colorKey(course.id, course.title)
             Surface(
@@ -2115,16 +1977,16 @@ private fun CourseColorsPage(
                         shape = RoundedCornerShape(8.dp)
                     ) {}
                     Column(modifier = Modifier.weight(1f).padding(start = 14.dp)) {
-                        Text(course.title, color = Color(0xFF141821), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(if (overrides.containsKey(key)) "已自定义" else "自动配色", color = Color(0xFF98A2B3), fontSize = 12.sp)
+                        Text(course.title, color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(if (overrides.containsKey(key)) "已自定义" else "自动配色", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                     }
-                    Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = Color(0xFF98A2B3), modifier = Modifier.size(20.dp))
+                    Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                 }
             }
         }
         item {
             TextButton(modifier = Modifier.fillMaxWidth(), onClick = onResetAll) {
-                Text("恢复全部默认颜色", color = Color(0xFFDC2626))
+                Text("恢复全部默认颜色", color = MaterialTheme.colorScheme.error)
             }
         }
         // 「已隐藏的卡片」已迁到「调休调课」页：两者都是「我手动改动了课表」的叠加层。
@@ -2174,7 +2036,7 @@ private fun PresetColorSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color(0xFFFFFEFB),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         tonalElevation = 0.dp
     ) {
         Column(
@@ -2182,8 +2044,8 @@ private fun PresetColorSheet(
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             Column {
-                Text(course.title, color = Color(0xFF141821), fontSize = 21.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("选择课程卡片颜色", color = Color(0xFF667085), fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
+                Text(course.title, color = MaterialTheme.colorScheme.onSurface, fontSize = 21.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("选择课程卡片颜色", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
             }
             // 预设色网格与两个按钮已提取到共享组件，与长按卡片的「卡片管理」弹层共用同一套。
             CourseColorPaletteSection(
@@ -2198,119 +2060,12 @@ private fun PresetColorSheet(
 // AdvancedColorSheet 与它的 hexToHsv / hsvToHex 已移到 ui/components/CourseColorPalette.kt，
 // 与长按卡片的「卡片管理」弹层共用。
 
-// ---- Notice Popup Dialog ----
+// ---- Dialogs ----
 
 private val EXPLICIT_ACTION_DIALOG_PROPERTIES = DialogProperties(
     dismissOnBackPress = false,
     dismissOnClickOutside = false
 )
-
-@Composable
-private fun NoticePopupDialog(
-    notice: NoticeInfo,
-    onDismiss: () -> Unit,
-    onOpenNotices: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = { },
-        properties = EXPLICIT_ACTION_DIALOG_PROPERTIES,
-        containerColor = Color(0xFFFFFBFE),
-        titleContentColor = Color(0xFF1D1B20),
-        textContentColor = Color(0xFF49454F),
-        title = { Text("新通知", fontWeight = FontWeight.Bold) },
-        text = {
-            // 公告正文没有长度上限，必须给它一个**限高的纵向滚动框**，否则弹窗会被撑得很长。
-            // 这里刻意不用 LazyColumn：LazyColumn 以 item 为粒度处理超高内容，
-            // 而正文是单个 item，滚动会不可靠（滚不到底 / 内容被裁）。
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 360.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                NoticePopupContent(notice = notice)
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onOpenNotices) {
-                Text("查看通知")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("知道了")
-            }
-        }
-    )
-}
-
-@Composable
-private fun NoticePopupContent(
-    notice: NoticeInfo
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            Text(
-                text = notice.title,
-                color = Color(0xFF1D1B20),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f)
-            )
-            NoticePopupLevelBadge(level = notice.level)
-        }
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = notice.publishedAt.toString(),
-            color = Color(0xFF6F6A72),
-            fontSize = 12.sp
-        )
-        if (notice.content.isNotBlank()) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = notice.content,
-                color = Color(0xFF3D3940),
-                fontSize = 14.sp,
-                lineHeight = 20.sp
-            )
-        }
-    }
-}
-
-@Composable
-private fun NoticePopupLevelBadge(level: String) {
-    val (container, content) = when (level.lowercase()) {
-        "important" -> Color(0xFFFEE2E2) to Color(0xFFDC2626)
-        "warning" -> Color(0xFFFFF3D8) to Color(0xFFD97706)
-        "update" -> Color(0xFFE8F0FE) to Color(0xFF245CA6)
-        else -> Color(0xFFEEF2F7) to Color(0xFF667085)
-    }
-    val label = when (level.lowercase()) {
-        "important" -> "重要"
-        "warning" -> "提醒"
-        "update" -> "更新"
-        else -> "通知"
-    }
-
-    Text(
-        text = label,
-        color = content,
-        fontSize = 12.sp,
-        fontWeight = FontWeight.Medium,
-        maxLines = 1,
-        modifier = Modifier
-            .background(container, RoundedCornerShape(999.dp))
-            .padding(horizontal = 9.dp, vertical = 4.dp)
-    )
-}
 
 // ---- Update Dialog ----
 
@@ -2382,9 +2137,6 @@ private fun UpdateDialog(
             AlertDialog(
                 onDismissRequest = { },
                 properties = EXPLICIT_ACTION_DIALOG_PROPERTIES,
-                containerColor = Color(0xFFFFFBFE),
-                titleContentColor = Color(0xFF1D1B20),
-                textContentColor = Color(0xFF49454F),
                 title = {
                     Text(
                         if (state.info.isNewer) "发现新版本 v${state.info.latestVersion}"
@@ -2408,7 +2160,7 @@ private fun UpdateDialog(
                                         state.info.releaseNotes,
                                         fontSize = 14.sp,
                                         lineHeight = 20.sp,
-                                        color = Color(0xFF3D3940)
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
@@ -2436,23 +2188,20 @@ private fun UpdateDialog(
             AlertDialog(
                 onDismissRequest = { },
                 properties = EXPLICIT_ACTION_DIALOG_PROPERTIES,
-                containerColor = Color(0xFFFFFBFE),
-                titleContentColor = Color(0xFF1D1B20),
-                textContentColor = Color(0xFF49454F),
                 title = { Text("正在下载 v${state.info.latestVersion}") },
                 text = {
                     Column {
                         LinearProgressIndicator(
                             modifier = Modifier.fillMaxWidth(),
                             progress = { state.progress },
-                            color = Color(0xFF3F7DF6),
-                            trackColor = Color(0xFF3F7DF6).copy(alpha = 0.12f)
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             "${state.downloadedMB} MB / ${state.totalMB} MB  (${(state.progress * 100).toInt()}%)",
                             fontSize = 13.sp,
-                            color = Color(0xFF667085)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 },
@@ -2476,11 +2225,8 @@ private fun UpdateDialog(
             AlertDialog(
                 onDismissRequest = { },
                 properties = EXPLICIT_ACTION_DIALOG_PROPERTIES,
-                containerColor = Color(0xFFFFFBFE),
-                titleContentColor = Color(0xFF1D1B20),
-                textContentColor = Color(0xFF49454F),
                 title = { Text("下载失败") },
-                text = { Text(state.message, color = Color(0xFF3D3940)) },
+                text = { Text(state.message, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                 confirmButton = {
                     TextButton(onClick = { startDownload(state.info) }) {
                         Text("重试")
@@ -2498,9 +2244,6 @@ private fun UpdateDialog(
             AlertDialog(
                 onDismissRequest = { },
                 properties = EXPLICIT_ACTION_DIALOG_PROPERTIES,
-                containerColor = Color(0xFFFFFBFE),
-                titleContentColor = Color(0xFF1D1B20),
-                textContentColor = Color(0xFF49454F),
                 title = { Text("下载完成") },
                 text = { Text("v${state.info.latestVersion} 已下载，是否立即安装？") },
                 confirmButton = {

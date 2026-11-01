@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,14 +46,22 @@ import com.glut.schedule.data.model.displaySectionLabel
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
-private val PageBg = Color(0xFFF6F4EF)
-private val CardBg = Color(0xFFFFFEFB)
-private val TextPrimary = Color(0xFF141821)
-private val TextSecondary = Color(0xFF667085)
-private val AccentBlue = Color(0xFF3F7DF6)
-private val ProgressGray = Color(0xFFE5E7EB)
-private val PastGray = Color(0xFFD1D5DB)
-private val NextGreen = Color(0xFF16A34A)
+private val PageBg: Color
+    @Composable get() = MaterialTheme.colorScheme.background
+private val CardBg: Color
+    @Composable get() = MaterialTheme.colorScheme.surfaceContainerLow
+private val TextPrimary: Color
+    @Composable get() = MaterialTheme.colorScheme.onSurface
+private val TextSecondary: Color
+    @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
+private val AccentBlue: Color
+    @Composable get() = MaterialTheme.colorScheme.primary
+private val ProgressGray: Color
+    @Composable get() = MaterialTheme.colorScheme.outlineVariant
+private val PastGray: Color
+    @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+private val NextGreen: Color
+    @Composable get() = MaterialTheme.colorScheme.tertiary
 
 @Composable
 fun SemesterOverviewScreen(
@@ -209,6 +218,9 @@ private fun ProgressPieCard(state: SemesterOverviewUiState) {
             Text("学期余额", color = TextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
             Spacer(modifier = Modifier.height(12.dp))
 
+            // Canvas 的 DrawScope 不是 @Composable 上下文，先在这里取出角色色再交给绘制 lambda。
+            val trackColor = ProgressGray
+            val progressColor = AccentBlue
             Box(contentAlignment = Alignment.Center, modifier = Modifier.size(160.dp)) {
                 Canvas(modifier = Modifier.size(160.dp)) {
                     val strokeW = 28f
@@ -217,7 +229,7 @@ private fun ProgressPieCard(state: SemesterOverviewUiState) {
                     val arcSize = Size(r * 2, r * 2)
 
                     drawArc(
-                        color = ProgressGray,
+                        color = trackColor,
                         startAngle = -90f,
                         sweepAngle = 360f * state.progressPercent,
                         useCenter = false,
@@ -226,7 +238,7 @@ private fun ProgressPieCard(state: SemesterOverviewUiState) {
                         style = Stroke(width = strokeW, cap = StrokeCap.Round)
                     )
                     drawArc(
-                        color = AccentBlue,
+                        color = progressColor,
                         startAngle = -90f + 360f * state.progressPercent,
                         sweepAngle = 360f * remainingPercent,
                         useCenter = false,
@@ -267,7 +279,7 @@ private fun HolidaysCard(holidays: List<HolidayDisplay>) {
                 modifier = Modifier.padding(start = 16.dp, top = 10.dp)
             )
             holidays.forEachIndexed { index, h ->
-                if (index > 0) HorizontalDivider(color = Color(0xFFEDE8DE))
+                if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 HolidayRow(h)
             }
         }
@@ -319,12 +331,13 @@ private fun HolidayRow(h: HolidayDisplay) {
     }
 }
 
+@Composable
 private fun adjustmentTypeColor(type: String): Color = when (type) {
-    "调课" -> Color(0xFF3F7DF6)
-    "补课" -> Color(0xFFD97706)
-    "停课" -> Color(0xFFDC2626)
-    "代课" -> Color(0xFF8B5CF6)
-    else -> Color(0xFF667085)
+    "调课" -> MaterialTheme.colorScheme.primary
+    "补课" -> MaterialTheme.colorScheme.secondary
+    "停课" -> MaterialTheme.colorScheme.error
+    "代课" -> MaterialTheme.colorScheme.tertiary
+    else -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
 @Composable
@@ -367,7 +380,7 @@ private fun AdjustmentWeekCard(week: Int, adjustments: List<SemesterAdjustment>,
                 }
             }
             adjustments.forEachIndexed { idx, adj ->
-                if (idx > 0) HorizontalDivider(color = Color(0xFFEDE8DE))
+                if (idx > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 AdjustmentRow(adj, isPast, hasNoon)
             }
         }

@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,13 +44,19 @@ import androidx.compose.ui.unit.sp
 import com.glut.schedule.data.model.ScoreInfo
 import com.glut.schedule.data.settings.CampusType
 
-private val ScorePrimary = Color(0xFF141821)
-private val ScoreSecondary = Color(0xFF667085)
-private val ScoreAccent = Color(0xFF3F7DF6)
-private val ScorePageBg = Color(0xFFF6F4EF)
-private val ScoreCardBg = Color(0xFFFFFEFB)
-private val ScoreChipBg = Color(0xFFE8E4D6)
-private val ScoreSemesterHeaderBg = Color(0xFF141821)
+/*
+ * 颜色一律取自 MaterialTheme.colorScheme（MD3 黄色主题），深浅色模式自适应，
+ * 这里只保留语义化名字，不再保留写死的十六进制色值。
+ */
+private val ScorePrimary: Color @Composable get() = MaterialTheme.colorScheme.onSurface
+private val ScoreSecondary: Color @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
+private val ScoreAccent: Color @Composable get() = MaterialTheme.colorScheme.primary
+private val ScorePageBg: Color @Composable get() = MaterialTheme.colorScheme.background
+private val ScoreCardBg: Color @Composable get() = MaterialTheme.colorScheme.surfaceContainerLow
+private val ScoreChipBg: Color @Composable get() = MaterialTheme.colorScheme.surfaceContainerHighest
+
+/** 深色强调底（学期标题 / 选中胶囊 / 绩点条）：用 primary 承载 onPrimary 文字。 */
+private val ScoreSemesterHeaderBg: Color @Composable get() = MaterialTheme.colorScheme.primary
 
 /**
  * 成绩页的展示口径。
@@ -169,7 +176,7 @@ fun ScoreScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color.White)
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
                     .padding(horizontal = 10.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
@@ -246,14 +253,14 @@ fun ScoreScreen(
                         ) {
                             Text(
                                 "平均学分绩点 ${String.format("%.2f", overallGpa)}",
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onPrimary,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 "ℹ",
-                                color = Color.White.copy(alpha = 0.6f),
+                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f),
                                 fontSize = 14.sp,
                                 modifier = Modifier.clickable { showGpaInfo = true }
                             )
@@ -323,7 +330,7 @@ private fun FilterChip(
     ) {
         Text(
             label,
-            color = if (isSelected) Color.White else ScorePrimary,
+            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else ScorePrimary,
             fontSize = 13.sp,
             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
             textAlign = TextAlign.Center,
@@ -386,32 +393,32 @@ private fun AcademicYearBlock(
             ) {
                 Text(
                     "$startYear-${startYear + 1} 学年",
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onPrimary,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold
                 )
                 if (supportsGpa) {
                     Text(
                         "GPA ${String.format("%.2f", gpa)}",
-                        color = Color.White.copy(alpha = 0.85f),
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
                         fontSize = 12.sp
                     )
                 }
             }
 
             // Term 1 (秋)
-            TermSection("第1学期", "秋", Color(0xFFD97706), autumnScores, supportsGpa)
+            TermSection("第1学期", "秋", MaterialTheme.colorScheme.secondary, autumnScores, supportsGpa)
 
             // Term 2 (春)
             if (springScores.isNotEmpty()) {
                 Spacer(Modifier.height(4.dp))
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = 10.dp),
-                    color = Color(0xFFEDE8DE),
+                    color = MaterialTheme.colorScheme.outlineVariant,
                     thickness = 1.dp
                 )
                 Spacer(Modifier.height(4.dp))
-                TermSection("第2学期", "春", Color(0xFF16A34A), springScores, supportsGpa)
+                TermSection("第2学期", "春", MaterialTheme.colorScheme.tertiary, springScores, supportsGpa)
             }
 
             // 学期号无法识别（既非秋也非春）时单独一栏，宁可显示得朴素也不要让成绩消失。
@@ -419,11 +426,11 @@ private fun AcademicYearBlock(
                 Spacer(Modifier.height(4.dp))
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = 10.dp),
-                    color = Color(0xFFEDE8DE),
+                    color = MaterialTheme.colorScheme.outlineVariant,
                     thickness = 1.dp
                 )
                 Spacer(Modifier.height(4.dp))
-                TermSection("其他学期", "?", Color(0xFF667085), otherScores, supportsGpa)
+                TermSection("其他学期", "?", MaterialTheme.colorScheme.onSurfaceVariant, otherScores, supportsGpa)
             }
         }
     }
@@ -498,18 +505,18 @@ private fun ScoreRow(score: ScoreInfo, showDivider: Boolean, supportsGpa: Boolea
         ScorePrimary
     } else {
         when {
-            score.gpa >= 3.7 -> Color(0xFF2D9A72)
-            score.gpa >= 3.0 -> Color(0xFF3F7DF6)
-            score.gpa >= 2.0 -> Color(0xFFD97706)
-            score.gpa > 0 -> Color(0xFFDC2626)
+            score.gpa >= 3.7 -> MaterialTheme.colorScheme.tertiary
+            score.gpa >= 3.0 -> MaterialTheme.colorScheme.primary
+            score.gpa >= 2.0 -> MaterialTheme.colorScheme.secondary
+            score.gpa > 0 -> MaterialTheme.colorScheme.error
             else -> ScoreSecondary
         }
     }
 
     val attrColor = when (score.category) {
-        "必修" -> Color(0xFF3F7DF6)
-        "限选" -> Color(0xFFD97706)
-        else -> Color(0xFF16A34A)
+        "必修" -> MaterialTheme.colorScheme.primary
+        "限选" -> MaterialTheme.colorScheme.secondary
+        else -> MaterialTheme.colorScheme.tertiary
     }
 
     Row(

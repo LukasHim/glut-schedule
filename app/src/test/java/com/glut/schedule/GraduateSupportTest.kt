@@ -713,7 +713,7 @@ class GraduateSupportTest {
         // 课表、导入、设置等与教务模块无关的入口必须照常可用。
         listOf(
             DrawerItem.Schedule, DrawerItem.Import, DrawerItem.Settings,
-            DrawerItem.Notice, DrawerItem.SemesterOverview, DrawerItem.FAQ, DrawerItem.About
+            DrawerItem.SemesterOverview, DrawerItem.FAQ, DrawerItem.About
         ).forEach { item ->
             assertTrue("$item 不应被禁用", item.isEnabledFor(CampusType.GRADUATE))
             assertNull(item.unsupportedHintFor(CampusType.GRADUATE))

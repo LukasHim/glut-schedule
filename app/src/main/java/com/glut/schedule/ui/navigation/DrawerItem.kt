@@ -15,7 +15,6 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.PeopleAlt
-import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.QueryStats
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -41,7 +40,6 @@ enum class DrawerItem(
     StudyPlan("教学计划", Icons.Outlined.MenuBook),
     Import("导入课表", Icons.Outlined.Download),
     Settings("设置", Icons.Outlined.Settings),
-    Notice("通知", Icons.Outlined.Notifications),
     SemesterOverview("学期概览", Icons.Outlined.DateRange),
     FAQ("常见问题", Icons.Outlined.HelpOutline),
     About("关于", Icons.Outlined.Info);
@@ -90,7 +88,6 @@ internal fun DrawerItem.requiredCapability(): MenuCapability? = when (this) {
     DrawerItem.Schedule,
     DrawerItem.Import,
     DrawerItem.Settings,
-    DrawerItem.Notice,
     DrawerItem.SemesterOverview,
     DrawerItem.FAQ,
     DrawerItem.About -> null
@@ -105,7 +102,6 @@ internal fun DrawerItem.unsupportedHintFor(campus: CampusType): String? =
 
 internal val otherDrawerItems = listOf(
     DrawerItem.Settings,
-    DrawerItem.Notice,
     DrawerItem.FAQ,
     DrawerItem.About
 )

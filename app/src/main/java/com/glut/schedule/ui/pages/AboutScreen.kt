@@ -31,6 +31,7 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -76,7 +77,7 @@ fun AboutScreen(
 
     Scaffold(
         modifier = modifier,
-        containerColor = Color(0xFFF6F4EF),
+        containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         LazyColumn(
@@ -97,7 +98,7 @@ fun AboutScreen(
                     // Info card
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        color = Color(0xFFFFFEFB),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
                         shape = RoundedCornerShape(16.dp)
                     ) {
                         Column(modifier = Modifier.padding(4.dp)) {
@@ -110,7 +111,7 @@ fun AboutScreen(
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text(
                                                 "v$updateAvailableVersion",
-                                                color = Color(0xFFDC2626),
+                                                color = MaterialTheme.colorScheme.error,
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Medium
                                             )
@@ -118,7 +119,7 @@ fun AboutScreen(
                                             Box(
                                                 modifier = Modifier
                                                     .size(8.dp)
-                                                    .background(Color(0xFFDC2626), CircleShape)
+                                                    .background(MaterialTheme.colorScheme.error, CircleShape)
                                             )
                                         }
                                     } else {
@@ -144,7 +145,7 @@ fun AboutScreen(
                                     }
                                 }
                             )
-                            HorizontalDivider(color = Color(0xFFEDE8DE))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             AboutInfoRow(
                                 icon = Icons.Outlined.Person,
                                 label = "维护者",
@@ -153,7 +154,7 @@ fun AboutScreen(
                                     uriHandler.openUri("https://github.com/hzhkdh")
                                 }
                             )
-                            HorizontalDivider(color = Color(0xFFEDE8DE))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             AboutInfoRow(
                                 icon = Icons.Outlined.Groups,
                                 label = "贡献者",
@@ -162,7 +163,7 @@ fun AboutScreen(
                                     uriHandler.openUri("https://github.com/m-z-jia")
                                 }
                             )
-                            HorizontalDivider(color = Color(0xFFEDE8DE))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             AboutInfoRow(
                                 icon = Icons.Outlined.Lock,
                                 label = "开源许可",
@@ -171,7 +172,7 @@ fun AboutScreen(
                                     uriHandler.openUri("https://github.com/hzhkdh/glut-schedule/blob/main/LICENSE")
                                 }
                             )
-                            HorizontalDivider(color = Color(0xFFEDE8DE))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             AboutInfoRow(
                                 icon = Icons.Outlined.Language,
                                 label = "项目地址",
@@ -180,7 +181,7 @@ fun AboutScreen(
                                     uriHandler.openUri("https://github.com/hzhkdh/glut-schedule")
                                 }
                             )
-                            HorizontalDivider(color = Color(0xFFEDE8DE))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             AboutInfoRow(
                                 icon = MiniProgramIcon,
                                 label = "小程序",
@@ -194,7 +195,7 @@ fun AboutScreen(
                                     scope.launch { snackbarHostState.showSnackbar(message) }
                                 }
                             )
-                            HorizontalDivider(color = Color(0xFFEDE8DE))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             AboutInfoRow(
                                 icon = Icons.Outlined.BugReport,
                                 label = "提交问题",
@@ -203,7 +204,7 @@ fun AboutScreen(
                                     uriHandler.openUri("https://github.com/hzhkdh/glut-schedule/issues/new")
                                 }
                             )
-                            HorizontalDivider(color = Color(0xFFEDE8DE))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             AboutInfoRow(
                                 icon = Icons.Outlined.Email,
                                 label = "反馈建议",
@@ -212,7 +213,7 @@ fun AboutScreen(
                                     uriHandler.openUri("mailto:hezh0425@qq.com")
                                 }
                             )
-                            HorizontalDivider(color = Color(0xFFEDE8DE))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             AboutInfoRow(
                                 icon = Icons.Outlined.Share,
                                 label = "分享",
@@ -227,7 +228,7 @@ fun AboutScreen(
             item {
                 Text(
                     text = "本应用为独立开发的非官方工具\n与任何学校官方机构无隶属或授权关系",
-                    color = Color(0xFF9CA3AF),
+                    color = MaterialTheme.colorScheme.outline,
                     fontSize = 11.sp,
                     lineHeight = 16.sp,
                     textAlign = TextAlign.Center,
@@ -320,12 +321,12 @@ private fun AboutInfoRow(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = Color(0xFF3F7DF6),
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(22.dp)
         )
         Text(
             text = label,
-            color = Color(0xFF141821),
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = 15.sp,
             maxLines = 1,
             modifier = Modifier.weight(1f)
@@ -333,14 +334,14 @@ private fun AboutInfoRow(
         trailing()
         Text(
             text = value,
-            color = Color(0xFF667085),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 13.sp,
             maxLines = 1
         )
         Icon(
             imageVector = Icons.Outlined.ChevronRight,
             contentDescription = null,
-            tint = Color(0xFF9CA3AF),
+            tint = MaterialTheme.colorScheme.outline,
             modifier = Modifier.size(20.dp)
         )
     }

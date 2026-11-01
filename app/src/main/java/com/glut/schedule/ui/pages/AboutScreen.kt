@@ -1,8 +1,5 @@
 package com.glut.schedule.ui.pages
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,9 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.ChevronRight
-import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Groups
-import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Lock
@@ -42,13 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.vector.path
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -67,13 +56,12 @@ fun AboutScreen(
     onShare: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val currentVersion = BuildConfig.VERSION_NAME
     val hasUpdate = updateAvailableVersion.isNotBlank()
-        && UpdateChecker.compareVersions(updateAvailableVersion, currentVersion) > 0
+            && UpdateChecker.compareVersions(updateAvailableVersion, currentVersion) > 0
 
     Scaffold(
         modifier = modifier,
@@ -149,6 +137,15 @@ fun AboutScreen(
                             AboutInfoRow(
                                 icon = Icons.Outlined.Person,
                                 label = "维护者",
+                                value = "LukasHim",
+                                onClick = {
+                                    uriHandler.openUri("https://github.com/LukasHim")
+                                }
+                            )
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                            AboutInfoRow(
+                                icon = Icons.Outlined.Person,
+                                label = "维护者",
                                 value = "24人工智能 hezh",
                                 onClick = {
                                     uriHandler.openUri("https://github.com/hzhkdh")
@@ -169,7 +166,7 @@ fun AboutScreen(
                                 label = "开源许可",
                                 value = "MIT License",
                                 onClick = {
-                                    uriHandler.openUri("https://github.com/hzhkdh/glut-schedule/blob/main/LICENSE")
+                                    // uriHandler.openUri("https://github.com/hzhkdh/glut-schedule/blob/main/LICENSE")
                                 }
                             )
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -178,21 +175,7 @@ fun AboutScreen(
                                 label = "项目地址",
                                 value = "GitHub",
                                 onClick = {
-                                    uriHandler.openUri("https://github.com/hzhkdh/glut-schedule")
-                                }
-                            )
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                            AboutInfoRow(
-                                icon = MiniProgramIcon,
-                                label = "小程序",
-                                value = MINI_PROGRAM_SEARCH_TEXT,
-                                onClick = {
-                                    val message = if (copyMiniProgramSearchText(context)) {
-                                        MINI_PROGRAM_COPY_SUCCESS
-                                    } else {
-                                        MINI_PROGRAM_COPY_FAILURE
-                                    }
-                                    scope.launch { snackbarHostState.showSnackbar(message) }
+                                    uriHandler.openUri("https://github.com/LukasHim/glut-schedule")
                                 }
                             )
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -201,24 +184,8 @@ fun AboutScreen(
                                 label = "提交问题",
                                 value = "GitHub Issues",
                                 onClick = {
-                                    uriHandler.openUri("https://github.com/hzhkdh/glut-schedule/issues/new")
+                                    uriHandler.openUri("https://github.com/LukasHim/glut-schedule/issues/new")
                                 }
-                            )
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                            AboutInfoRow(
-                                icon = Icons.Outlined.Email,
-                                label = "反馈建议",
-                                value = "hezh0425@qq.com",
-                                onClick = {
-                                    uriHandler.openUri("mailto:hezh0425@qq.com")
-                                }
-                            )
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                            AboutInfoRow(
-                                icon = Icons.Outlined.Share,
-                                label = "分享",
-                                value = "推荐给同学",
-                                onClick = onShare
                             )
                         }
                     }
@@ -241,66 +208,6 @@ fun AboutScreen(
     }
 }
 
-private const val MINI_PROGRAM_SEARCH_TEXT = "桂系一站式"
-private const val MINI_PROGRAM_COPY_SUCCESS = "已复制“桂系一站式”，请前往微信搜索"
-private const val MINI_PROGRAM_COPY_FAILURE = "复制失败，请手动在微信搜索“桂系一站式”"
-
-private val MiniProgramIcon: ImageVector by lazy {
-    ImageVector.Builder(
-        name = "MiniProgram",
-        defaultWidth = 24.dp,
-        defaultHeight = 24.dp,
-        viewportWidth = 24f,
-        viewportHeight = 24f
-    ).apply {
-        path(
-            fill = null,
-            stroke = SolidColor(Color.Black),
-            strokeLineWidth = 1.8f,
-            strokeLineCap = StrokeCap.Round,
-            strokeLineJoin = StrokeJoin.Round
-        ) {
-            moveTo(12f, 3f)
-            curveTo(16.97f, 3f, 21f, 7.03f, 21f, 12f)
-            curveTo(21f, 16.97f, 16.97f, 21f, 12f, 21f)
-            curveTo(7.03f, 21f, 3f, 16.97f, 3f, 12f)
-            curveTo(3f, 7.03f, 7.03f, 3f, 12f, 3f)
-            close()
-        }
-        path(
-            fill = null,
-            stroke = SolidColor(Color.Black),
-            strokeLineWidth = 1.8f,
-            strokeLineCap = StrokeCap.Round,
-            strokeLineJoin = StrokeJoin.Round
-        ) {
-            moveTo(14.8f, 7.8f)
-            curveTo(13.7f, 6.5f, 11.5f, 6.5f, 10.1f, 7.8f)
-            curveTo(8.8f, 9.1f, 8.8f, 10.6f, 10.1f, 11.4f)
-            curveTo(11.3f, 12.2f, 12.7f, 11.8f, 13.5f, 10.7f)
-        }
-        path(
-            fill = null,
-            stroke = SolidColor(Color.Black),
-            strokeLineWidth = 1.8f,
-            strokeLineCap = StrokeCap.Round,
-            strokeLineJoin = StrokeJoin.Round
-        ) {
-            moveTo(9.2f, 16.2f)
-            curveTo(10.3f, 17.5f, 12.5f, 17.5f, 13.9f, 16.2f)
-            curveTo(15.2f, 14.9f, 15.2f, 13.4f, 13.9f, 12.6f)
-            curveTo(12.7f, 11.8f, 11.3f, 12.2f, 10.5f, 13.3f)
-        }
-    }.build()
-}
-
-private fun copyMiniProgramSearchText(context: Context): Boolean {
-    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-        ?: return false
-    return runCatching {
-        clipboard.setPrimaryClip(ClipData.newPlainText("小程序名称", MINI_PROGRAM_SEARCH_TEXT))
-    }.isSuccess
-}
 
 @Composable
 private fun AboutInfoRow(

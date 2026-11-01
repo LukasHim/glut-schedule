@@ -2,7 +2,7 @@ package com.glut.schedule
 
 import com.glut.schedule.service.UpdateDownloadPolicy
 import com.glut.schedule.service.downloadFile
-import com.glut.schedule.service.parseUpdateMetadata
+import com.glut.schedule.service.parseGitHubRelease
 import com.glut.schedule.service.isTrustedApkIdentity
 import java.io.File
 import kotlinx.coroutines.runBlocking
@@ -22,28 +22,56 @@ class UpdateSecurityTest {
 
     @Test
     fun downloadPolicyOnlyAllowsKnownHttpsHosts() {
-        assertTrue(UpdateDownloadPolicy.isAllowedDownloadUrl("https://update.999314.xyz/app.apk"))
-        assertTrue(UpdateDownloadPolicy.isAllowedDownloadUrl("https://github.com/hzhkdh/glut-schedule/releases/download/v1/app.apk"))
-        assertFalse(UpdateDownloadPolicy.isAllowedDownloadUrl("http://update.999314.xyz/app.apk"))
-        assertFalse(UpdateDownloadPolicy.isAllowedDownloadUrl("https://update.999314.xyz.evil.example/app.apk"))
+        assertTrue(UpdateDownloadPolicy.isAllowedDownloadUrl("https://github.com/LukasHim/glut-schedule/releases/download/v1/app.apk"))
+        assertTrue(UpdateDownloadPolicy.isAllowedDownloadUrl("https://objects.githubusercontent.com/app.apk"))
+        assertFalse(UpdateDownloadPolicy.isAllowedDownloadUrl("http://github.com/LukasHim/glut-schedule/releases/download/v1/app.apk"))
+        // 旧的静态更新站已下线，不再是受信任来源。
+        assertFalse(UpdateDownloadPolicy.isAllowedDownloadUrl("https://update.999314.xyz/app.apk"))
+        assertFalse(UpdateDownloadPolicy.isAllowedDownloadUrl("https://github.com.evil.example/app.apk"))
         assertFalse(UpdateDownloadPolicy.isAllowedDownloadUrl("https://attacker.example/app.apk"))
     }
 
     @Test
-    fun updateMetadataDoesNotRequireHashOrSizeButStillRequiresAllowedUrl() {
+    fun githubReleaseParsingRequiresAnApkAssetFromAnAllowedUrl() {
         val valid = """
             {
-              "versionCode":122,
-              "versionName":"0.22.0",
-              "downloadUrl":"https://update.999314.xyz/app.apk",
-              "updateDesc":"安全更新"
+              "tag_name": "v0.26.0",
+              "html_url": "https://github.com/LukasHim/glut-schedule/releases/tag/v0.26.0",
+              "body": "安全更新",
+              "assets": [
+                {
+                  "name": "glutShedule_0.26.0.apk",
+                  "browser_download_url": "https://github.com/LukasHim/glut-schedule/releases/download/v0.26.0/glutShedule_0.26.0.apk"
+                }
+              ]
             }
         """.trimIndent()
-        val info = parseUpdateMetadata(valid, "0.21.0")
+
+        val info = parseGitHubRelease(valid, "0.25.0")
 
         assertNotNull(info)
-        assertEquals("0.22.0", info?.latestVersion)
-        assertNull(parseUpdateMetadata(valid.replace("https://", "http://"), "0.21.0"))
+        assertEquals("0.26.0", info?.latestVersion)
+        assertTrue(info?.isNewer == true)
+        // 非白名单主机的资产地址一律拒绝，不把用户引到外域下载。
+        assertNull(
+            parseGitHubRelease(
+                valid.replace("https://github.com", "https://evil.example"),
+                "0.25.0"
+            )
+        )
+        // 没有 .apk 资产的发布不算可用更新。
+        assertNull(parseGitHubRelease("""{"tag_name":"v0.26.0","assets":[]}""", "0.25.0"))
+    }
+
+    @Test
+    fun updateCheckOnlyQueriesTheGitHubReleasesApi() {
+        val checker = source("service/UpdateChecker.kt")
+
+        assertTrue(checker.contains("private val repoOwner: String = \"LukasHim\""))
+        assertTrue(checker.contains("https://api.github.com/repos/"))
+        // 静态 JSON 渠道已下线，避免两个版本来源互相矛盾。
+        assertFalse(checker.contains("update.999314.xyz"))
+        assertFalse(checker.contains("github.io"))
     }
 
     @Test
@@ -99,5 +127,11 @@ class UpdateSecurityTest {
                 "com.glut.schedule", 121, setOf("signer-a")
             )
         )
+    }
+
+    private fun source(relative: String): String {
+        val module = File("src/main/java/com/glut/schedule/$relative")
+        return (if (module.exists()) module else File("app/src/main/java/com/glut/schedule/$relative"))
+            .readText()
     }
 }

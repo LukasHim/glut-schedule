@@ -1,6 +1,5 @@
 import com.android.build.gradle.internal.api.BaseVariantOutputImpl
 import java.io.ByteArrayOutputStream
-import java.security.MessageDigest
 import java.util.Properties
 
 plugins {
@@ -15,11 +14,11 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.glut.schedule"
+        applicationId = "com.glut.schedule.md"
         minSdk = 26
         targetSdk = 36
         versionCode = 127
-        versionName = "0.25.0"
+        versionName = "0.26.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
     }
@@ -148,27 +147,20 @@ dependencies {
 
 // ── Publishing ──
 // Test builds: use .\gradlew.bat assembleDebug or assembleRelease (no publishing)
-// Release:     use .\gradlew.bat publishUpdate (builds + GitHub Release + CF Pages)
+// Release:     use .\gradlew.bat publishUpdate (builds + GitHub Release)
 tasks.register("publishUpdate") {
     group = "publishing"
-    description = "Build release APK, create GitHub Release, and sync to Cloudflare Pages update host"
+    description = "Build release APK and create a GitHub Release"
 
     dependsOn("assembleRelease")
 
     doLast {
-        val versionCode = android.defaultConfig.versionCode
         val versionName = android.defaultConfig.versionName
         val apkDir = layout.buildDirectory.dir("outputs/apk/release").get().asFile
         val apkFile = File(apkDir, "glutShedule_$versionName.apk")
             .takeIf(File::isFile)
             ?: error("Release APK not found: ${File(apkDir, "glutShedule_$versionName.apk")}")
         val rootDir = file("${rootProject.projectDir}")
-        val updateDir = file("$rootDir/../app-update-host")
-        val apkName = apkFile.name
-        if (!updateDir.exists()) {
-            throw GradleException("app-update-host directory not found at ${updateDir.absolutePath}. " +
-                "Clone it: git clone https://github.com/hzhkdh/app-update-host.git ${updateDir.absolutePath}")
-        }
 
         fun gitStatus(directory: File): String {
             val output = ByteArrayOutputStream()
@@ -183,68 +175,17 @@ tasks.register("publishUpdate") {
         if (gitStatus(rootDir).isNotBlank()) {
             throw GradleException("scheduleApp 工作区存在未提交修改，拒绝发布")
         }
-        if (gitStatus(updateDir).isNotBlank()) {
-            throw GradleException("app-update-host 工作区存在未提交修改，拒绝覆盖或推送")
-        }
 
-        val digest = MessageDigest.getInstance("SHA-256")
-        apkFile.inputStream().use { input ->
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            while (true) {
-                val read = input.read(buffer)
-                if (read < 0) break
-                digest.update(buffer, 0, read)
-            }
-        }
-        val apkSha256 = digest.digest().joinToString("") { byte -> "%02x".format(byte) }
-
-        // ── 1. Create GitHub Release ──
+        // 客户端只从 GitHub Releases API 读取更新（见 UpdateChecker），
+        // 所以发布只需要创建 Release：APK 作为 Release 资产就能被客户端发现。
         exec {
             workingDir = rootDir
-            commandLine("gh", "release", "create", "v$versionName", apkFile.absolutePath,
+            commandLine(
+                "gh", "release", "create", "v$versionName", apkFile.absolutePath,
                 "--title", "v$versionName",
-                "--notes", "Release v$versionName")
+                "--notes", "Release v$versionName"
+            )
         }
-        println("Created GitHub Release: v$versionName")
-
-        // ── 2. Sync to Cloudflare Pages ──
-        apkFile.copyTo(File(updateDir, apkName), overwrite = true)
-        println("Copied $apkName to app-update-host/")
-
-        val updateJson = File(updateDir, "update.json")
-        val existingUpdate = if (updateJson.isFile) {
-            (groovy.json.JsonSlurper().parse(updateJson) as? Map<*, *>) ?: emptyMap<Any, Any>()
-        } else emptyMap<Any, Any>()
-        // 发布任务只刷新可由构建确定的元数据；维护者填写的文案与弹窗策略必须保留。
-        val updateDesc = existingUpdate["updateDesc"]?.toString().orEmpty()
-        val forceUpdate = existingUpdate["forceUpdate"] as? Boolean ?: false
-        val popup = existingUpdate["popup"] as? Boolean ?: true
-        val json = groovy.json.JsonOutput.toJson(mapOf(
-            "versionCode" to versionCode,
-            "versionName" to versionName,
-            "downloadUrl" to "https://update.999314.xyz/$apkName",
-            "apkSha256" to apkSha256,
-            "apkSize" to apkFile.length(),
-            "updateDesc" to updateDesc,
-            "forceUpdate" to forceUpdate,
-            "popup" to popup
-        ))
-        updateJson.writeText(groovy.json.JsonOutput.prettyPrint(json))
-        println("Updated update.json")
-
-        exec {
-            workingDir = updateDir
-            commandLine("git", "add", "--", apkName, "update.json")
-        }
-        exec {
-            workingDir = updateDir
-            commandLine("git", "-C", updateDir.absolutePath, "commit", "-m", "v$versionName")
-        }
-        exec {
-            workingDir = updateDir
-            commandLine("git", "-C", updateDir.absolutePath, "push", "origin", "main")
-        }
-        println("Pushed app-update-host → Cloudflare Pages deploying (~30s)")
-        println("✅ v$versionName published: GitHub Release + CF Pages")
+        println("✅ v$versionName published: GitHub Release")
     }
 }

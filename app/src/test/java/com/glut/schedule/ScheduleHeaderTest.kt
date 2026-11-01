@@ -52,9 +52,9 @@ class ScheduleHeaderTest {
     }
 
     @Test
-    fun gridMonthTextUsesWeekMondayMonth() {
-        assertEquals("5月", scheduleGridMonthText(LocalDate.of(2026, 5, 11)))
-        assertEquals("7月", scheduleGridMonthText(LocalDate.of(2026, 7, 13)))
+    fun gridMonthTextUsesWeekStartDateMonth() {
+        assertEquals("5月", scheduleGridMonthText(LocalDate.of(2026, 5, 10)))
+        assertEquals("7月", scheduleGridMonthText(LocalDate.of(2026, 7, 12)))
     }
 
     @Test
@@ -65,7 +65,8 @@ class ScheduleHeaderTest {
 
     @Test
     fun calendarDaysExposeDatesAndHighlightOnlyTheActualToday() {
-        val currentWeek = ScheduleWeek(1, LocalDate.of(2026, 7, 27))
+        // 一周从周日开始：第 1 周从 2026-07-26（周日）起算，工作日 27~31 号依次排开。
+        val currentWeek = ScheduleWeek(1, LocalDate.of(2026, 7, 26))
         val currentDays = scheduleCalendarDays(
             week = currentWeek,
             today = LocalDate.of(2026, 7, 30),
@@ -78,13 +79,15 @@ class ScheduleHeaderTest {
         assertEquals(listOf(false, false, false, true, false), currentDays.map { it.isToday })
 
         val otherWeek = scheduleCalendarDays(
-            week = ScheduleWeek(2, LocalDate.of(2026, 8, 3)),
+            week = ScheduleWeek(2, LocalDate.of(2026, 8, 2)),
             today = LocalDate.of(2026, 7, 30),
             dayCount = 7,
             showCalendarDates = true
         )
         assertEquals(7, otherWeek.size)
         assertEquals(false, otherWeek.any { it.isToday })
+        // 显示周末时周日排在最左，后面才是周一~周六。
+        assertEquals(listOf("日", "一", "二", "三", "四", "五", "六"), otherWeek.map { it.name })
     }
 
     private fun semester(

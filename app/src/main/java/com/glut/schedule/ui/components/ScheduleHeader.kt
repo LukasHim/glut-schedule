@@ -83,7 +83,7 @@ fun ScheduleHeader(
     onReturnToCurrentClick: () -> Unit,
     onDrawerOpen: () -> Unit = {},
     isRefreshing: Boolean = false,
-    useSurfaceColors: Boolean = false,
+    useSurfaceColors: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val colorScheme = MaterialTheme.colorScheme

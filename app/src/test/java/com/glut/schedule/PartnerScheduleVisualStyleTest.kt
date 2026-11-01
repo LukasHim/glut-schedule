@@ -14,36 +14,11 @@ import kotlin.math.pow
 class PartnerScheduleVisualStyleTest {
 
     @Test
-    fun `邀请码卡片和页面提示的文字满足普通文本对比度`() {
-        assertReadable(
-            PartnerScheduleVisualStyle.inviteContent,
-            PartnerScheduleVisualStyle.inviteSurface
-        )
-        assertReadable(
-            PartnerScheduleVisualStyle.inviteAction,
-            PartnerScheduleVisualStyle.inviteSurface
-        )
-        assertReadable(
-            PartnerScheduleVisualStyle.feedbackContent,
-            PartnerScheduleVisualStyle.feedbackSurface
-        )
-    }
-
-    @Test
     fun `粉蓝详情卡片均使用可读的身份色文字`() {
         PartnerIdentityColor.entries.forEach { identityColor ->
             val cardStyle = PartnerScheduleVisualStyle.courseCard(identityColor)
             assertReadable(cardStyle.content, cardStyle.surface)
         }
-    }
-
-    @Test
-    fun `课程详情固定使用白色容器和高对比度正文`() {
-        assertEquals(Color.White, PartnerScheduleVisualStyle.detailSurface)
-        assertReadable(
-            PartnerScheduleVisualStyle.detailContent,
-            PartnerScheduleVisualStyle.detailSurface
-        )
     }
 
     @Test

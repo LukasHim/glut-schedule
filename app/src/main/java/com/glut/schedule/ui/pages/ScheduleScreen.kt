@@ -44,8 +44,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -83,16 +81,16 @@ import com.glut.schedule.ui.components.CourseCardManageSheet
 import com.glut.schedule.ui.components.ScheduleGrid
 import com.glut.schedule.ui.components.isManualCopyBlock
 import com.glut.schedule.ui.components.ScheduleHeader
-import com.glut.schedule.ui.components.ScheduleBackgroundImage
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.LocalDateTime
 
 @Composable
 fun ScheduleScreen(
     viewModel: ScheduleViewModel,
     uiState: ScheduleUiState,
-    customBackgroundBitmap: ImageBitmap?,
     onImportClick: () -> Unit,
     onExamClick: () -> Unit = {},
     onDrawerOpen: () -> Unit = {},
@@ -113,9 +111,18 @@ fun ScheduleScreen(
     // 「调」/「补」角标要用它反查：卡片本身没有任何字段能说明自己来自哪种调整。
     val semesterAdjustments by viewModel.semesterAdjustments.collectAsStateWithLifecycle()
     val coroutineScope = rememberCoroutineScope()
+    // 课表页每秒刷新一次时间状态：当前节次高亮跟着真实时间走，跨零点后「今天」也要跟着换日。
+    // 时钟只放这一处，节次列直接读它，避免两套时间源各走各的。
+    var now by remember { mutableStateOf(LocalDateTime.now()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = LocalDateTime.now()
+            delay(1_000L)
+        }
+    }
+    val today = now.toLocalDate()
     if (!uiState.isInitialized) {
-        // 背景设置尚未恢复时只显示中性占位，避免把临时空值误绘制成默认《花》。
-        // DataStore 与 Room 都完成首轮恢复后再创建 Pager，避免错误背景和默认周次短暂闪现。
+        // DataStore 与 Room 都完成首轮恢复后再创建 Pager，避免默认周次短暂闪现。
         Box(modifier = modifier.fillMaxSize())
         return
     }
@@ -128,7 +135,7 @@ fun ScheduleScreen(
         courseBlocksByWeek(
             courses = uiState.courses,
             maxWeek = uiState.maxAcademicWeek,
-            semesterStartMonday = uiState.semesterStartMonday,
+            semesterStartDate = uiState.semesterStartMonday,
             rules = uiState.manualDayCopies
         )
     }
@@ -136,14 +143,6 @@ fun ScheduleScreen(
     // Pager 的每个页面都要用，因此在进入 Pager 之前算一次。
     val adjustmentDates = remember(uiState.manualDayCopies) {
         uiState.manualDayCopies.mapTo(mutableSetOf()) { it.targetDate }
-    }
-    if (uiState.showBackground &&
-        com.glut.schedule.ui.components.shouldUseCustomBackground(uiState.customBackgroundUri) &&
-        customBackgroundBitmap == null
-    ) {
-        // Activity 会继续保留系统启动窗口；这里绝不能绘制另一张内置画作，否则冷启动会闪切背景。
-        Box(modifier = modifier.fillMaxSize())
-        return
     }
     val pagerState = key(uiState.viewedSemester?.id) {
         rememberPagerState(
@@ -177,15 +176,8 @@ fun ScheduleScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(if (uiState.showBackground) Color.Transparent else MaterialTheme.colorScheme.background)
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        if (uiState.showBackground) {
-            ScheduleBackgroundImage(
-                customBackgroundUri = uiState.customBackgroundUri,
-                customBackgroundBitmap = customBackgroundBitmap,
-                dimAmount = uiState.backgroundDimAmount
-            )
-        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -194,7 +186,7 @@ fun ScheduleScreen(
         ) {
             ScheduleHeader(
                 week = uiState.week,
-                today = uiState.today,
+                today = today,
                 currentWeekNumber = uiState.currentWeekNumber,
                 onWeekTitleClick = {
                     val currentWeekPage = pagerPageForWeekNumber(
@@ -233,7 +225,7 @@ fun ScheduleScreen(
                 onReturnToCurrentClick = viewModel::returnToCurrentSemester,
                 onDrawerOpen = onDrawerOpen,
                 isRefreshing = uiState.isRefreshing,
-                useSurfaceColors = !uiState.showBackground
+                useSurfaceColors = true
             )
             // 空态判定必须用**完整**课表：用户把某周或某课次的卡片全隐藏之后，
             // 展示列表会变空，但课表本身还在，不该整页变成「还没有课表 / 去导入课表」。
@@ -260,11 +252,12 @@ fun ScheduleScreen(
                 val pageBlocks = blocksByWeek[pageWeekNumber].orEmpty()
                 ScheduleGrid(
                     week = pageWeek,
-                    today = uiState.today,
+                    today = today,
                     periods = uiState.classPeriods,
                     blocks = pageBlocks,
                     showWeekend = uiState.showWeekend,
                     showNoon = uiState.showNoon,
+                    now = now.toLocalTime(),
                     // 已废弃「periods.size <= 11 就是南宁」的推断：研究生同样是 12 节且无中午节次，
                     // 必须按来源显式告知网格要不要做中午映射。
                     hasNoonSections = capabilitiesFor(uiState.campusType).hasNoonSections,
@@ -283,7 +276,7 @@ fun ScheduleScreen(
                         }
                     },
                     modifier = Modifier.fillMaxSize(),
-                    useSurfaceColors = !uiState.showBackground
+                    useSurfaceColors = true
                 )
             }
         }
@@ -591,7 +584,7 @@ fun pagerPageForWeekNumber(weekNumber: Int, maxWeek: Int = MAX_ACADEMIC_WEEK): I
 fun courseBlocksByWeek(
     courses: List<ScheduleCourse>,
     maxWeek: Int = MAX_ACADEMIC_WEEK,
-    semesterStartMonday: LocalDate = DEFAULT_SEMESTER_START_MONDAY,
+    semesterStartDate: LocalDate = DEFAULT_SEMESTER_START_MONDAY,
     rules: List<ManualDayCopyRule> = emptyList()
 ): Map<Int, List<CourseBlock>> {
     val clampedMaxWeek = clampAcademicWeek(maxWeek)
@@ -606,7 +599,7 @@ fun courseBlocksByWeek(
             courses = courses,
             rules = rules,
             weekNumber = weekNumber,
-            weekMonday = scheduleWeekForNumber(weekNumber, semesterStartMonday, clampedMaxWeek).monday
+            weekSunday = scheduleWeekForNumber(weekNumber, semesterStartDate, clampedMaxWeek).sunday
         )
     }
 }

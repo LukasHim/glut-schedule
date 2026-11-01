@@ -7,25 +7,19 @@ import org.junit.Test
 
 class MultiSemesterUiContractTest {
     @Test
-    fun scheduleLoadingPlaceholderDoesNotDrawDefaultBackgroundBeforeSettingsRestore() {
+    fun schedulePageUsesThemeBackgroundWithoutArtwork() {
         val screen = page("ScheduleScreen.kt")
         val loadingBranch = screen
             .substringAfter("if (!uiState.isInitialized) {")
             .substringBefore("val blocksByWeek")
 
+        // 设置尚未恢复时只画中性占位，不能提前渲染任何背景分支。
         assertTrue(loadingBranch.contains("Box(modifier = modifier.fillMaxSize())"))
-        assertFalse(loadingBranch.contains("ScheduleBackgroundImage("))
-    }
-
-    @Test
-    fun customBackgroundLoadingDoesNotDrawBuiltInArtworkFallback() {
-        val screen = page("ScheduleScreen.kt")
-        val loadingBranch = screen
-            .substringAfter("customBackgroundBitmap == null")
-            .substringBefore("val pagerState")
-
-        assertTrue(loadingBranch.contains("Box(modifier = modifier.fillMaxSize())"))
-        assertFalse(loadingBranch.contains("ScheduleBackgroundImage("))
+        // 课表页背景改为主题背景色，背景图相关代码已整体移除。
+        assertFalse(screen.contains("ScheduleBackgroundImage("))
+        assertFalse(screen.contains("customBackgroundBitmap"))
+        assertFalse(screen.contains("showBackground"))
+        assertTrue(screen.contains(".background(MaterialTheme.colorScheme.background)"))
     }
 
     /**

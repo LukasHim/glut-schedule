@@ -19,13 +19,10 @@ import com.glut.schedule.data.model.buildScheduleRefreshDiff
 import com.glut.schedule.data.model.applyHiddenCourseRules
 import com.glut.schedule.data.model.hiddenCardCount
 import com.glut.schedule.data.model.hiddenCourseKey
-import com.glut.schedule.data.model.ScheduleBackgroundPreferences
 import com.glut.schedule.data.model.ScheduleCourse
 import com.glut.schedule.data.model.DEFAULT_SEMESTER_START_MONDAY
 import com.glut.schedule.data.model.DEFAULT_SEMESTER_END_DATE
 import com.glut.schedule.data.model.ScheduleWeek
-import com.glut.schedule.data.model.DEFAULT_BACKGROUND_DIM_AMOUNT
-import com.glut.schedule.data.model.NormalizedCropRect
 import com.glut.schedule.data.model.manualCopyBlocksForWeek
 import com.glut.schedule.data.model.academicWeekForDate
 import com.glut.schedule.data.model.academicMaxWeekForCalendar
@@ -33,7 +30,7 @@ import com.glut.schedule.data.model.academicMaxWeekForSemester
 import com.glut.schedule.data.model.clampAcademicWeek
 import com.glut.schedule.data.model.countDistinctCourseTitles
 import com.glut.schedule.data.model.isActiveInWeek
-import com.glut.schedule.data.model.normalizeSemesterStartMonday
+import com.glut.schedule.data.model.normalizeSemesterWeekStart
 import com.glut.schedule.data.model.scheduleWeekForNumber
 import com.glut.schedule.data.repository.ScheduleRepository
 import com.glut.schedule.data.settings.CampusType
@@ -97,14 +94,6 @@ data class ScheduleUiState(
     val showNoon: Boolean = false,
     /** 课表是否绘制网格线；默认关闭，只在设置页开启后才有线。 */
     val showGridLines: Boolean = false,
-    val customBackgroundUri: String = "",
-    val customBackgroundCrop: NormalizedCropRect? = null,
-    val remoteBackgroundId: String = "",
-    val remoteBackgroundSha256: String = "",
-    val remoteBackgroundDisplayName: String = "",
-    val backgroundDimAmount: Float = DEFAULT_BACKGROUND_DIM_AMOUNT,
-    /** 是否绘制课表背景；关闭时使用普通页面主题背景。 */
-    val showBackground: Boolean = false,
     val courseColorOverrides: Map<String, String> = emptyMap(),
     val isRefreshing: Boolean = false,
     val message: String = "",
@@ -159,8 +148,6 @@ internal fun selectedWeekAfterCalendarRefresh(
 )
 
 private data class ScheduleAppearanceSettings(
-    val backgroundPreferences: ScheduleBackgroundPreferences,
-    val showBackground: Boolean,
     val campusType: CampusType,
     val guilinSubCampus: String,
     val classPeriodProfileOverrides: Map<ClassPeriodProfile, List<ClassPeriod>>
@@ -173,13 +160,6 @@ private data class ScheduleSettingsUiState(
     val showGridLines: Boolean,
     val semesterStartMonday: LocalDate,
     val semesterEndDate: LocalDate,
-    val customBackgroundUri: String,
-    val customBackgroundCrop: NormalizedCropRect?,
-    val remoteBackgroundId: String,
-    val remoteBackgroundSha256: String,
-    val remoteBackgroundDisplayName: String,
-    val backgroundDimAmount: Float,
-    val showBackground: Boolean,
     val campusType: CampusType,
     val guilinSubCampus: String = GUILIN_SUB_CAMPUS_DEFAULT,
     val classPeriodProfileOverrides: Map<ClassPeriodProfile, List<ClassPeriod>> = emptyMap(),
@@ -310,15 +290,11 @@ class ScheduleViewModel(
                 )
             },
             combine(
-                settingsStore.backgroundPreferences,
                 settingsStore.campusType,
                 settingsStore.guilinSubCampus,
-                settingsStore.classPeriodProfileOverrides,
-                settingsStore.showScheduleBackground
-            ) { backgroundPreferences, campusType, guilinSubCampus, profileOverrides, showBackground ->
+                settingsStore.classPeriodProfileOverrides
+            ) { campusType, guilinSubCampus, profileOverrides ->
                 ScheduleAppearanceSettings(
-                    backgroundPreferences = backgroundPreferences,
-                    showBackground = showBackground,
                     campusType = campusType,
                     guilinSubCampus = guilinSubCampus,
                     classPeriodProfileOverrides = profileOverrides
@@ -336,13 +312,6 @@ class ScheduleViewModel(
                 showGridLines = showGridLines,
                 semesterStartMonday = base.semesterStartMonday,
                 semesterEndDate = base.semesterEndDate,
-                customBackgroundUri = appearance.backgroundPreferences.uri,
-                customBackgroundCrop = appearance.backgroundPreferences.crop,
-                remoteBackgroundId = appearance.backgroundPreferences.remoteId,
-                remoteBackgroundSha256 = appearance.backgroundPreferences.remoteSha256,
-                remoteBackgroundDisplayName = appearance.backgroundPreferences.remoteDisplayName,
-                backgroundDimAmount = appearance.backgroundPreferences.dimAmount,
-                showBackground = appearance.showBackground,
                 campusType = appearance.campusType,
                 guilinSubCampus = appearance.guilinSubCampus,
                 classPeriodProfileOverrides = appearance.classPeriodProfileOverrides,
@@ -391,7 +360,7 @@ class ScheduleViewModel(
             val hasAuthoritativeCalendar = !isHistorical ||
                 (viewedSemester?.semesterStartDate != null && viewedSemester.semesterEndDate != null)
             val fallbackStart = viewedSemester?.let(::estimatedSemesterStart) ?: settings.semesterStartMonday
-            val normalizedStart = normalizeSemesterStartMonday(
+            val normalizedStart = normalizeSemesterWeekStart(
                 viewedSemester?.semesterStartDate ?: if (isHistorical) fallbackStart else settings.semesterStartMonday
             )
             val resolvedEnd = viewedSemester?.semesterEndDate
@@ -401,7 +370,7 @@ class ScheduleViewModel(
                 portalMaxWeek = viewedSemester?.portalMaxWeek,
                 // 推导最大周次必须用完整课表：过滤后的列表会让历史学期被截短。
                 courses = coloredState.allCourses,
-                semesterStartMonday = normalizedStart,
+                semesterStartDate = normalizedStart,
                 semesterEndDate = resolvedEnd
             )
             val clampedWeekNumber = if (initialWeekSet) {
@@ -450,20 +419,13 @@ class ScheduleViewModel(
                     courses = visibleCourses,
                     rules = manualDayCopies,
                     weekNumber = clampedWeekNumber,
-                    weekMonday = scheduleWeekForNumber(clampedWeekNumber, normalizedStart, maxAcademicWeek).monday
+                    weekSunday = scheduleWeekForNumber(clampedWeekNumber, normalizedStart, maxAcademicWeek).sunday
                 ),
                 holidayDates = if (isHistorical) emptySet() else settings.holidayDates,
                 manualDayCopies = manualDayCopies,
                 showWeekend = settings.showWeekend,
                 showNoon = settings.showNoon,
                 showGridLines = settings.showGridLines,
-                customBackgroundUri = settings.customBackgroundUri,
-                customBackgroundCrop = settings.customBackgroundCrop,
-                remoteBackgroundId = settings.remoteBackgroundId,
-                remoteBackgroundSha256 = settings.remoteBackgroundSha256,
-                remoteBackgroundDisplayName = settings.remoteBackgroundDisplayName,
-                backgroundDimAmount = settings.backgroundDimAmount,
-                showBackground = settings.showBackground,
                 courseColorOverrides = coloredState.overrides,
                 semesters = semesters,
                 viewedSemester = viewedSemester,
@@ -556,26 +518,6 @@ class ScheduleViewModel(
                 academicWeekForDate(LocalDate.now(), start, academicMaxWeekForCalendar(start, end))
             )
         }
-    }
-
-    fun setCustomBackgroundUri(uri: String) {
-        viewModelScope.launch { settingsStore.setCustomBackgroundUri(uri) }
-    }
-
-    fun setCustomBackground(uri: String, crop: NormalizedCropRect) {
-        viewModelScope.launch { settingsStore.setCustomBackground(uri, crop) }
-    }
-
-    fun setBackgroundDimAmount(value: Float) {
-        viewModelScope.launch { settingsStore.setBackgroundDimAmount(value) }
-    }
-
-    fun setShowBackground(show: Boolean) {
-        viewModelScope.launch { settingsStore.setShowScheduleBackground(show) }
-    }
-
-    fun clearCustomBackground() {
-        viewModelScope.launch { settingsStore.setCustomBackgroundUri("") }
     }
 
     fun setCourseColorOverride(courseKey: String, colorHex: String) {

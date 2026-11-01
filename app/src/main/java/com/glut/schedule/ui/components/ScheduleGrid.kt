@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.glut.schedule.data.model.ClassPeriod
 import com.glut.schedule.data.model.NOON_SECTIONS
+import com.glut.schedule.data.model.activeClassPeriodSection
 import com.glut.schedule.data.model.periodLabel
 import com.glut.schedule.data.model.CourseBlock
 import com.glut.schedule.data.model.SemesterAdjustment
@@ -57,9 +58,18 @@ import com.glut.schedule.data.model.adjustmentMarkerFor
 import com.glut.schedule.data.model.readableMarkerColor
 import com.glut.schedule.data.model.ScheduleWeek
 import com.glut.schedule.data.model.visibleDayCount
+import com.glut.schedule.data.model.visibleDayOfWeeks
 import java.time.LocalDate
+import java.time.LocalTime
 
-private val dayNames = listOf("一", "二", "三", "四", "五", "六", "日")
+private val dayNames = listOf("日", "一", "二", "三", "四", "五", "六")
+
+/**
+ * 教务星期序号（1=周一 … 7=周日）在课表列里的下标。
+ *
+ * 一周从周日开始，因此周日排在最左、周一~周六顺次跟在后面。
+ */
+internal fun scheduleColumnIndexOf(dayOfWeek: Int): Int = if (dayOfWeek == 7) 0 else dayOfWeek
 
 /**
  * 固定节次高度内必须显式约束文字行高，并移除部分系统字体自带的超大上下留白。
@@ -129,10 +139,15 @@ fun scheduleCalendarDays(
     today: LocalDate,
     dayCount: Int,
     showCalendarDates: Boolean
-): List<ScheduleCalendarDay> = dayNames.take(dayCount).mapIndexed { index, name ->
-    val date = week.dateFor(index + 1).takeIf { showCalendarDates }
-    ScheduleCalendarDay(name = name, date = date, isToday = date == today)
-}
+): List<ScheduleCalendarDay> =
+    visibleDayOfWeeks(dayCount).map { dayOfWeek ->
+        val date = week.dateFor(dayOfWeek).takeIf { showCalendarDates }
+        ScheduleCalendarDay(
+            name = dayNames[dayOfWeek % 7],
+            date = date,
+            isToday = date == today
+        )
+    }
 
 @Composable
 fun ScheduleGrid(
@@ -162,6 +177,8 @@ fun ScheduleGrid(
     showCalendarDates: Boolean = true,
     holidayDates: Set<LocalDate> = emptySet(),
     manualAdjustmentDates: Set<LocalDate> = emptySet(),
+    /** 当前时刻；由课表页每秒刷新一次，用来定位「正在上的那一节」。 */
+    now: LocalTime = LocalTime.now(),
     /** 长按卡片时回调当前**显示中**的那一张（冲突组里只有它是可见的），打开卡片管理弹层。 */
     onCourseLongClick: ((CourseBlock) -> Unit)? = null,
     /** 该学期的教务调课记录，用来给调课/补课产生的卡片打「调」/「补」角标。 */
@@ -170,7 +187,7 @@ fun ScheduleGrid(
      * false：课表铺在背景图上，文字固定用白色；
      * true：课表使用主题背景，文字与网格线全部走 MaterialTheme 角色色。
      */
-    useSurfaceColors: Boolean = false,
+    useSurfaceColors: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
@@ -216,6 +233,9 @@ fun ScheduleGrid(
                     rowHeight = rowHeight,
                     width = leftWidth,
                     hasNoonSections = hasNoonSections,
+                    now = now,
+                    // 只有正在看「包含今天的那一周」才谈得上当前节次；翻到别的周时高亮必须消失。
+                    highlightCurrentPeriod = week.contains(today),
                     useSurfaceColors = useSurfaceColors
                 )
                 TimetableBody(
@@ -246,7 +266,7 @@ fun ScheduleCalendarHeader(
     showCalendarDates: Boolean = true,
     holidayDates: Set<LocalDate> = emptySet(),
     manualAdjustmentDates: Set<LocalDate> = emptySet(),
-    useSurfaceColors: Boolean = false
+    useSurfaceColors: Boolean = true
 ) {
     val colorScheme = MaterialTheme.colorScheme
     Row(modifier = Modifier.fillMaxWidth()) {
@@ -286,7 +306,7 @@ private fun MonthHeader(
         contentAlignment = Alignment.CenterStart
     ) {
         Text(
-            text = if (showCalendarDates) scheduleGridMonthText(week.monday) else "周次",
+            text = if (showCalendarDates) scheduleGridMonthText(week.sunday) else "周次",
             color = color,
             fontSize = 12.sp,
             lineHeight = 13.sp,
@@ -442,7 +462,11 @@ private fun PeriodColumn(
     rowHeight: Dp,
     width: Dp,
     hasNoonSections: Boolean = true,
-    useSurfaceColors: Boolean = false
+    /** 当前时刻；由调用方每秒刷新，列本身不再自带时钟，避免两套时间源打架。 */
+    now: LocalTime,
+    /** 当前显示的这一周是否包含今天；为 false 时即使此刻正在上课也不高亮。 */
+    highlightCurrentPeriod: Boolean = true,
+    useSurfaceColors: Boolean = true
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val primaryText = if (useSurfaceColors) colorScheme.onSurface else Color.White
@@ -451,32 +475,60 @@ private fun PeriodColumn(
     } else {
         Color.White.copy(alpha = 0.56f)
     }
+    val activeSection = if (highlightCurrentPeriod) {
+        activeClassPeriodSection(visibleRows, now)
+    } else {
+        null
+    }
+    val activeBackground = if (useSurfaceColors) {
+        colorScheme.primaryContainer
+    } else {
+        Color.White.copy(alpha = 0.18f)
+    }
+    val activeForeground = if (useSurfaceColors) {
+        colorScheme.onPrimaryContainer
+    } else {
+        Color.White
+    }
     // 有中午节次的来源（桂林）用 periodLabel() 把内部号映射成「午1/午2 + 5-12」；
     // 南宁与研究生没有中午节次，内部号即显示号，直排。
     Column(modifier = Modifier.width(width)) {
         visibleRows.forEach { period ->
+            val isActive = period.section == activeSection
             Column(
                 modifier = Modifier
                     .height(rowHeight)
-                    .padding(start = 6.dp, top = 7.dp),
+                    // 左右各让 3dp 给高亮底色，再补 3dp 内边距——高亮前后文字位置完全一致，
+                    // 不会因为进入/离开当前节次而左右跳动。
+                    .padding(horizontal = 3.dp)
+                    .then(
+                        if (isActive) {
+                            Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(activeBackground)
+                        } else {
+                            Modifier
+                        }
+                    )
+                    .padding(start = 3.dp, top = 7.dp),
                 horizontalAlignment = Alignment.Start
             ) {
                 Text(
                     text = if (hasNoonSections) period.periodLabel() else "${period.section}",
-                    color = primaryText,
+                    color = if (isActive) activeForeground else primaryText,
                     style = periodColumnTextStyle(fontSize = 14.sp, lineHeight = 16.sp),
                     maxLines = 1,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = period.startsAt,
-                    color = secondaryText,
+                    color = if (isActive) activeForeground else secondaryText,
                     style = periodColumnTextStyle(fontSize = 9.sp, lineHeight = 11.sp),
                     maxLines = 1
                 )
                 Text(
                     text = period.endsAt,
-                    color = secondaryText,
+                    color = if (isActive) activeForeground else secondaryText,
                     style = periodColumnTextStyle(fontSize = 9.sp, lineHeight = 11.sp),
                     maxLines = 1
                 )
@@ -497,7 +549,7 @@ private fun TimetableBody(
     onCourseLongClick: ((CourseBlock) -> Unit)? = null,
     weekNumber: Int = 0,
     adjustments: List<SemesterAdjustment> = emptyList(),
-    useSurfaceColors: Boolean = false,
+    useSurfaceColors: Boolean = true,
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val gridLineColor = if (useSurfaceColors) {
@@ -577,7 +629,7 @@ private fun TimetableBody(
                     ),
                     modifier = Modifier
                         .offset(
-                            x = dayWidth * (activeBlock.occurrence.dayOfWeek - 1) + 2.dp,
+                            x = dayWidth * scheduleColumnIndexOf(activeBlock.occurrence.dayOfWeek) + 2.dp,
                             // 行号直接从可见行列表查，不再自己按节次号推算偏移：
                             // 「隐藏中午时减 3」与 visibleRows 是同一规则的两种写法，分开写迟早漂移。
                             y = rowHeight * (

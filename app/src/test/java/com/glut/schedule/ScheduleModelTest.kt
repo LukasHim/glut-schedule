@@ -8,7 +8,10 @@ import com.glut.schedule.data.model.historicalAcademicMaxWeek
 import com.glut.schedule.data.model.academicMaxWeekForCalendar
 import com.glut.schedule.data.model.academicMaxWeekForSemester
 import com.glut.schedule.data.model.visibleDayCount
+import com.glut.schedule.data.model.visibleDayOfWeeks
 import com.glut.schedule.data.model.defaultClassPeriods
+import com.glut.schedule.data.model.ClassPeriod
+import com.glut.schedule.data.model.activeClassPeriodSection
 import com.glut.schedule.data.model.scheduleWeekForNumber
 import com.glut.schedule.data.model.clampAcademicWeek
 import com.glut.schedule.data.model.isActiveInWeek
@@ -20,9 +23,11 @@ import com.glut.schedule.data.model.SemesterSeason
 import com.glut.schedule.data.settings.CampusType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
+import java.time.LocalTime
 
 class ScheduleModelTest {
     @Test
@@ -61,19 +66,30 @@ class ScheduleModelTest {
                 isCurrentSemester = false,
                 portalMaxWeek = 19,
                 courses = listOf(course),
-                semesterStartMonday = LocalDate.of(2024, 9, 2),
+                semesterStartDate = LocalDate.of(2024, 9, 2),
                 semesterEndDate = LocalDate.of(2024, 12, 22)
             )
         )
     }
     @Test
     fun scheduleWeek_movesBySevenDaysAndUpdatesWeekNumber() {
-        val current = ScheduleWeek(number = 9, monday = LocalDate.of(2026, 5, 4))
+        val current = ScheduleWeek(number = 9, sunday = LocalDate.of(2026, 5, 3))
 
         assertEquals(8, current.previous().number)
-        assertEquals(LocalDate.of(2026, 4, 27), current.previous().monday)
+        assertEquals(LocalDate.of(2026, 4, 26), current.previous().sunday)
         assertEquals(10, current.next().number)
-        assertEquals(LocalDate.of(2026, 5, 11), current.next().monday)
+        assertEquals(LocalDate.of(2026, 5, 10), current.next().sunday)
+    }
+
+    @Test
+    fun scheduleWeekContainsOnlyItsOwnSundayToSaturdayRange() {
+        val week = scheduleWeekForNumber(1, LocalDate.of(2026, 3, 9))
+
+        assertEquals(LocalDate.of(2026, 3, 8), week.sunday)
+        assertTrue(week.contains(LocalDate.of(2026, 3, 8)))
+        assertTrue(week.contains(LocalDate.of(2026, 3, 14)))
+        assertTrue(!week.contains(LocalDate.of(2026, 3, 7)))
+        assertTrue(!week.contains(LocalDate.of(2026, 3, 15)))
     }
 
     @Test
@@ -123,30 +139,68 @@ class ScheduleModelTest {
     }
 
     @Test
-    fun academicWeekUsesConfiguredSemesterStartMonday() {
-        val semesterStartMonday = LocalDate.of(2026, 3, 9)
+    fun academicWeekCountsFromTheConfiguredSemesterStartSunday() {
+        // 一周从周日开始：2026-03-09（周一）归一到上一个周日 2026-03-08，那才是第 1 周的第一天。
+        val semesterStartDate = LocalDate.of(2026, 3, 9)
 
-        assertEquals(1, academicWeekForDate(LocalDate.of(2026, 3, 9), semesterStartMonday))
-        assertEquals(1, academicWeekForDate(LocalDate.of(2026, 3, 15), semesterStartMonday))
-        assertEquals(2, academicWeekForDate(LocalDate.of(2026, 3, 16), semesterStartMonday))
-        assertEquals(9, academicWeekForDate(LocalDate.of(2026, 5, 5), semesterStartMonday))
+        assertEquals(1, academicWeekForDate(LocalDate.of(2026, 3, 8), semesterStartDate))
+        assertEquals(1, academicWeekForDate(LocalDate.of(2026, 3, 14), semesterStartDate))
+        assertEquals(2, academicWeekForDate(LocalDate.of(2026, 3, 15), semesterStartDate))
+        assertEquals(2, academicWeekForDate(LocalDate.of(2026, 3, 16), semesterStartDate))
+        assertEquals(9, academicWeekForDate(LocalDate.of(2026, 5, 5), semesterStartDate))
     }
 
     @Test
     fun academicMaxWeekUsesCalendarEndDate() {
-        val semesterStartMonday = LocalDate.of(2026, 3, 9)
-        val semesterEndDate = LocalDate.of(2026, 7, 19)
+        val semesterStartDate = LocalDate.of(2026, 3, 9)
+        // 第 19 周从 2026-07-12（周日）开始，其最后一天是周六 2026-07-18。
+        val semesterEndDate = LocalDate.of(2026, 7, 18)
 
-        assertEquals(19, academicMaxWeekForCalendar(semesterStartMonday, semesterEndDate))
-        assertEquals(19, academicWeekForDate(LocalDate.of(2026, 7, 27), semesterStartMonday, maxWeek = 19))
+        assertEquals(19, academicMaxWeekForCalendar(semesterStartDate, semesterEndDate))
+        assertEquals(19, academicWeekForDate(LocalDate.of(2026, 7, 27), semesterStartDate, maxWeek = 19))
     }
 
     @Test
-    fun scheduleWeekForNumberUsesConfiguredSemesterStartMonday() {
-        val semesterStartMonday = LocalDate.of(2026, 3, 9)
+    fun scheduleWeekForNumberStartsEachWeekOnSunday() {
+        val semesterStartDate = LocalDate.of(2026, 3, 9)
 
-        assertEquals(LocalDate.of(2026, 3, 9), scheduleWeekForNumber(1, semesterStartMonday).monday)
-        assertEquals(LocalDate.of(2026, 5, 4), scheduleWeekForNumber(9, semesterStartMonday).monday)
+        assertEquals(LocalDate.of(2026, 3, 8), scheduleWeekForNumber(1, semesterStartDate).sunday)
+        assertEquals(LocalDate.of(2026, 5, 3), scheduleWeekForNumber(9, semesterStartDate).sunday)
+    }
+
+    @Test
+    fun visibleDayOfWeeksPutsSundayFirstWhenTheWeekendIsShown() {
+        assertEquals(listOf(1, 2, 3, 4, 5), visibleDayOfWeeks(5))
+        assertEquals(listOf(7, 1, 2, 3, 4, 5, 6), visibleDayOfWeeks(7))
+    }
+
+    @Test
+    fun activeClassPeriodSectionPicksThePeriodContainingNow() {
+        val periods = listOf(
+            ClassPeriod(1, "08:30", "09:15"),
+            ClassPeriod(2, "09:20", "10:05")
+        )
+
+        assertEquals(1, activeClassPeriodSection(periods, LocalTime.of(8, 30)))
+        assertEquals(1, activeClassPeriodSection(periods, LocalTime.of(9, 14)))
+        // 区间左闭右开：下课铃一响就不再属于第 1 节。
+        assertNull(activeClassPeriodSection(periods, LocalTime.of(9, 15)))
+        // 下一节开始的那一刻立刻切到下一节。
+        assertEquals(2, activeClassPeriodSection(periods, LocalTime.of(9, 20)))
+        assertNull(activeClassPeriodSection(periods, LocalTime.of(8, 0)))
+        // 两节之间的课间不高亮任何一行。
+        assertNull(activeClassPeriodSection(periods, LocalTime.of(9, 17)))
+        assertNull(activeClassPeriodSection(periods, LocalTime.of(10, 5)))
+    }
+
+    @Test
+    fun activeClassPeriodSectionSkipsPeriodsWithoutUsableTimes() {
+        // 研究生作息允许整份不填钟点：没有时间就永远不高亮，而不是当成「一直在上课」。
+        val blank = listOf(ClassPeriod(1, "", ""), ClassPeriod(2, "", ""))
+        assertNull(activeClassPeriodSection(blank, LocalTime.of(9, 0)))
+
+        val unparsable = listOf(ClassPeriod(1, "08:30", "--:--"))
+        assertNull(activeClassPeriodSection(unparsable, LocalTime.of(9, 0)))
     }
 
     @Test

@@ -3,7 +3,6 @@ package com.glut.schedule.data.settings
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
@@ -14,20 +13,16 @@ import com.glut.schedule.data.model.DEFAULT_SEMESTER_END_DATE
 import com.glut.schedule.data.model.DEFAULT_SEMESTER_START_MONDAY
 import com.glut.schedule.data.model.ClassPeriod
 import com.glut.schedule.data.model.CourseColorMapper
-import com.glut.schedule.data.model.DEFAULT_BACKGROUND_DIM_AMOUNT
 import com.glut.schedule.data.model.HiddenCourseRule
 import com.glut.schedule.data.model.ManualDayCopyRule
-import com.glut.schedule.data.model.NormalizedCropRect
-import com.glut.schedule.data.model.ScheduleBackgroundPreferences
 import com.glut.schedule.data.model.decodeHiddenCourseRules
 import com.glut.schedule.data.model.decodeManualDayCopyRules
 import com.glut.schedule.data.model.encodeHiddenCourseRules
 import com.glut.schedule.data.model.encodeManualDayCopyRules
-import com.glut.schedule.data.model.snapBackgroundDimAmount
 import com.glut.schedule.data.model.AcademicSemester
 import com.glut.schedule.data.model.SemesterSeason
 import com.glut.schedule.data.model.clampAcademicWeek
-import com.glut.schedule.data.model.normalizeSemesterStartMonday
+import com.glut.schedule.data.model.normalizeSemesterWeekStart
 import com.glut.schedule.data.model.validateClassPeriods
 import com.glut.schedule.service.holiday.encodeHolidayYearCache
 import com.glut.schedule.service.holiday.holidayYearCache
@@ -105,15 +100,8 @@ class ScheduleSettingsStore(
     private val partnerViewModeKey = stringPreferencesKey("partner_schedule_view_mode")
     private val semesterStartMondayKey = stringPreferencesKey("semester_start_monday")
     private val semesterEndDateKey = stringPreferencesKey("semester_end_date")
-    private val customBackgroundUriKey = stringPreferencesKey("custom_background_uri")
-    private val customBackgroundCropLeftKey = floatPreferencesKey("custom_background_crop_left")
-    private val customBackgroundCropTopKey = floatPreferencesKey("custom_background_crop_top")
-    private val customBackgroundCropRightKey = floatPreferencesKey("custom_background_crop_right")
-    private val customBackgroundCropBottomKey = floatPreferencesKey("custom_background_crop_bottom")
-    private val backgroundDimAmountKey = floatPreferencesKey("background_dim_amount")
-    private val remoteBackgroundIdKey = stringPreferencesKey("remote_background_id")
-    private val remoteBackgroundSha256Key = stringPreferencesKey("remote_background_sha256")
-    private val remoteBackgroundDisplayNameKey = stringPreferencesKey("remote_background_display_name")
+    /** 情侣/基友课表页自己的主题种子色；留空表示使用默认身份色。 */
+    private val partnerThemeSeedKey = stringPreferencesKey("partner_theme_seed")
     private val courseColorOverridesKey = stringSetPreferencesKey("course_color_overrides")
     private val guilinClassPeriodsKey = stringSetPreferencesKey("guilin_class_periods")
     private val guilinYanshanClassPeriodsKey = stringSetPreferencesKey("guilin_yanshan_class_periods")
@@ -139,13 +127,6 @@ class ScheduleSettingsStore(
     private val themeModeKey = stringPreferencesKey("theme_mode")
     /** 动态取色开关；默认关闭，保证默认观感是黄色主题。 */
     private val dynamicColorEnabledKey = booleanPreferencesKey("dynamic_color_enabled")
-    /**
-     * 是否在课表页绘制背景（自定义图或内置画作）。
-     *
-     * 没有显式值时沿用历史行为：**配置过自定义背景**的老用户继续看到背景，
-     * 其余用户（包括全新安装）默认使用普通页面主题背景。
-     */
-    private val showScheduleBackgroundKey = booleanPreferencesKey("show_schedule_background")
     /** 上课提醒开关与提前分钟数。 */
     private val classReminderEnabledKey = booleanPreferencesKey("class_reminder_enabled")
     private val classReminderMinutesKey = intPreferencesKey("class_reminder_minutes")
@@ -170,7 +151,7 @@ class ScheduleSettingsStore(
     val semesterStartMonday: Flow<LocalDate> = context.scheduleSettings.data.map { preferences ->
         preferences[semesterStartMondayKey]
             ?.let { value -> runCatching { LocalDate.parse(value) }.getOrNull() }
-            ?.let(::normalizeSemesterStartMonday)
+            ?.let(::normalizeSemesterWeekStart)
             ?: DEFAULT_SEMESTER_START_MONDAY
     }.distinctUntilChanged()
 
@@ -180,31 +161,9 @@ class ScheduleSettingsStore(
             ?: DEFAULT_SEMESTER_END_DATE
     }.distinctUntilChanged()
 
-    val customBackgroundUri: Flow<String> = context.scheduleSettings.data.map { preferences ->
-        preferences[customBackgroundUriKey].orEmpty()
-    }.distinctUntilChanged()
-
-    /** URI、裁剪参数和蒙黑度来自同一份 Preferences 快照，避免界面短暂组合出不一致状态。 */
-    val backgroundPreferences: Flow<ScheduleBackgroundPreferences> = context.scheduleSettings.data.map { preferences ->
-        val crop = listOf(
-            preferences[customBackgroundCropLeftKey],
-            preferences[customBackgroundCropTopKey],
-            preferences[customBackgroundCropRightKey],
-            preferences[customBackgroundCropBottomKey]
-        ).takeIf { values -> values.all { it != null } }
-            ?.let { values ->
-                NormalizedCropRect(values[0]!!, values[1]!!, values[2]!!, values[3]!!).sanitized()
-            }
-        ScheduleBackgroundPreferences(
-            uri = preferences[customBackgroundUriKey].orEmpty(),
-            crop = crop,
-            dimAmount = snapBackgroundDimAmount(
-                preferences[backgroundDimAmountKey] ?: DEFAULT_BACKGROUND_DIM_AMOUNT
-            ),
-            remoteId = preferences[remoteBackgroundIdKey].orEmpty(),
-            remoteSha256 = preferences[remoteBackgroundSha256Key].orEmpty(),
-            remoteDisplayName = preferences[remoteBackgroundDisplayNameKey].orEmpty()
-        )
+    /** 情侣/基友课表页的主题种子色；空串表示使用 [DEFAULT_PARTNER_THEME_SEED_HEX]。 */
+    val partnerThemeSeed: Flow<String> = context.scheduleSettings.data.map { preferences ->
+        preferences[partnerThemeSeedKey].orEmpty()
     }.distinctUntilChanged()
 
     val courseColorOverrides: Flow<Map<String, String>> = context.scheduleSettings.data.map { preferences ->
@@ -288,11 +247,6 @@ class ScheduleSettingsStore(
         preferences[dynamicColorEnabledKey] ?: false
     }.distinctUntilChanged()
 
-    val showScheduleBackground: Flow<Boolean> = context.scheduleSettings.data.map { preferences ->
-        preferences[showScheduleBackgroundKey]
-            ?: preferences[customBackgroundUriKey].orEmpty().isNotBlank()
-    }.distinctUntilChanged()
-
     val classReminderEnabled: Flow<Boolean> = context.scheduleSettings.data.map { preferences ->
         preferences[classReminderEnabledKey] ?: false
     }.distinctUntilChanged()
@@ -314,9 +268,12 @@ class ScheduleSettingsStore(
         }
     }
 
-    suspend fun setShowScheduleBackground(enabled: Boolean) {
+    /** 伙伴课表主题色：写 `#RRGGBB`；空串表示恢复默认身份粉。 */
+    suspend fun setPartnerThemeSeed(hex: String) {
         context.scheduleSettings.edit { preferences ->
-            preferences[showScheduleBackgroundKey] = enabled
+            val normalized = hex.trim()
+            if (normalized.isBlank()) preferences.remove(partnerThemeSeedKey)
+            else preferences[partnerThemeSeedKey] = normalized
         }
     }
 
@@ -430,71 +387,13 @@ class ScheduleSettingsStore(
 
     suspend fun setSemesterStartMonday(date: LocalDate) {
         context.scheduleSettings.edit { preferences ->
-            preferences[semesterStartMondayKey] = normalizeSemesterStartMonday(date).toString()
+            preferences[semesterStartMondayKey] = normalizeSemesterWeekStart(date).toString()
         }
     }
 
     suspend fun setSemesterEndDate(date: LocalDate) {
         context.scheduleSettings.edit { preferences ->
             preferences[semesterEndDateKey] = date.toString()
-        }
-    }
-
-    suspend fun setCustomBackgroundUri(uri: String) {
-        setCustomBackground(uri, crop = null)
-    }
-
-    /** 自定义图片 URI 与裁剪区域必须一次写入，避免冷启动读到半套配置。 */
-    suspend fun setCustomBackground(uri: String, crop: NormalizedCropRect?) {
-        context.scheduleSettings.edit { preferences ->
-            writeBackground(preferences, uri, crop)
-            preferences.remove(remoteBackgroundIdKey)
-            preferences.remove(remoteBackgroundSha256Key)
-            preferences.remove(remoteBackgroundDisplayNameKey)
-        }
-    }
-
-    /** 远程资源身份与 URI、裁剪区域一次写入，删除管理才能可靠判断“使用中”。 */
-    suspend fun setRemoteBackground(
-        uri: String,
-        crop: NormalizedCropRect?,
-        id: String,
-        sha256: String,
-        displayName: String
-    ) {
-        context.scheduleSettings.edit { preferences ->
-            writeBackground(preferences, uri, crop)
-            preferences[remoteBackgroundIdKey] = id
-            preferences[remoteBackgroundSha256Key] = sha256
-            preferences[remoteBackgroundDisplayNameKey] = displayName
-        }
-    }
-
-    private fun writeBackground(
-        preferences: MutablePreferences,
-        uri: String,
-        crop: NormalizedCropRect?
-    ) {
-        val trimmed = uri.trim()
-        if (trimmed.isBlank()) preferences.remove(customBackgroundUriKey)
-        else preferences[customBackgroundUriKey] = trimmed
-        val safeCrop = crop?.sanitized()
-        if (safeCrop == null) {
-            preferences.remove(customBackgroundCropLeftKey)
-            preferences.remove(customBackgroundCropTopKey)
-            preferences.remove(customBackgroundCropRightKey)
-            preferences.remove(customBackgroundCropBottomKey)
-        } else {
-            preferences[customBackgroundCropLeftKey] = safeCrop.left
-            preferences[customBackgroundCropTopKey] = safeCrop.top
-            preferences[customBackgroundCropRightKey] = safeCrop.right
-            preferences[customBackgroundCropBottomKey] = safeCrop.bottom
-        }
-    }
-
-    suspend fun setBackgroundDimAmount(value: Float) {
-        context.scheduleSettings.edit { preferences ->
-            preferences[backgroundDimAmountKey] = snapBackgroundDimAmount(value)
         }
     }
 

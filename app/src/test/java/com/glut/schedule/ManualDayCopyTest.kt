@@ -31,7 +31,8 @@ import org.junit.Test
  */
 class ManualDayCopyTest {
 
-    // 2026-03-09 是第 1 周周一，因此第 2 周周一为 2026-03-16，第 2 周周三为 2026-03-18。
+    // 2026-03-09 是第 1 周里的周一；一周从周日开始，因此第 1 周从 2026-03-08（周日）起算，
+    // 第 2 周的周日是 2026-03-15，第 2 周周三为 2026-03-18。
     private val semesterStartMonday = LocalDate.of(2026, 3, 9)
 
     private val courses = listOf(
@@ -60,7 +61,7 @@ class ManualDayCopyTest {
             courses = courses,
             rules = listOf(rule),
             weekNumber = 2,
-            weekMonday = semesterStartMonday.plusWeeks(1)
+            weekSunday = semesterStartMonday.minusDays(1).plusWeeks(1)
         )
 
         assertEquals(1, copied.size)
@@ -83,7 +84,7 @@ class ManualDayCopyTest {
             courses = courses,
             rules = listOf(rule),
             weekNumber = 3,
-            weekMonday = semesterStartMonday.plusWeeks(1)
+            weekSunday = semesterStartMonday.minusDays(1).plusWeeks(1)
         )
 
         assertTrue(otherWeek.isEmpty())
@@ -115,7 +116,7 @@ class ManualDayCopyTest {
             courses = weekly,
             rules = listOf(rule),
             weekNumber = 4,
-            weekMonday = semesterStartMonday.plusWeeks(3)
+            weekSunday = semesterStartMonday.minusDays(1).plusWeeks(3)
         )
 
         assertEquals(1, copied.size)
@@ -155,11 +156,12 @@ class ManualDayCopyTest {
     }
 
     @Test
-    fun weekNumberForDateCountsFromSemesterMonday() {
+    fun weekNumberForDateCountsFromSemesterWeekStart() {
+        // 一周从周日开始：2026-03-09 归一到 2026-03-08，第 1 周到 2026-03-14（周六）为止。
         assertEquals(1, weekNumberForDate(semesterStartMonday, semesterStartMonday))
-        assertEquals(1, weekNumberForDate(semesterStartMonday.plusDays(6), semesterStartMonday))
-        assertEquals(2, weekNumberForDate(semesterStartMonday.plusDays(7), semesterStartMonday))
-        assertEquals(0, weekNumberForDate(semesterStartMonday.minusDays(1), semesterStartMonday))
+        assertEquals(1, weekNumberForDate(semesterStartMonday.plusDays(5), semesterStartMonday))
+        assertEquals(2, weekNumberForDate(semesterStartMonday.plusDays(6), semesterStartMonday))
+        assertEquals(0, weekNumberForDate(semesterStartMonday.minusDays(2), semesterStartMonday))
     }
 
     @Test
@@ -172,7 +174,7 @@ class ManualDayCopyTest {
         val blocksByWeek = courseBlocksByWeek(
             courses = courses,
             maxWeek = 19,
-            semesterStartMonday = semesterStartMonday,
+            semesterStartDate = semesterStartMonday,
             rules = listOf(rule)
         )
 
@@ -185,12 +187,12 @@ class ManualDayCopyTest {
     }
 
     @Test
-    fun weekMondayForCopiesMatchesTheScheduleWeekMapping() {
-        // 追加副本用的周一必须与页面渲染用的周一一致，否则副本会落到错误的周。
+    fun weekSundayForCopiesMatchesTheScheduleWeekMapping() {
+        // 追加副本用的周日必须与页面渲染用的周日一致，否则副本会落到错误的周。
         val week = scheduleWeekForNumber(7, semesterStartMonday, 19)
 
-        assertEquals(semesterStartMonday.plusWeeks(6), week.monday)
-        assertEquals(week.monday, LocalDate.of(2026, 4, 20))
+        assertEquals(semesterStartMonday.minusDays(1).plusWeeks(6), week.sunday)
+        assertEquals(week.sunday, LocalDate.of(2026, 4, 19))
     }
 
     @Test

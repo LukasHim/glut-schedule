@@ -38,26 +38,27 @@ fun manualCopyBlocksForWeek(
     courses: List<ScheduleCourse>,
     rules: List<ManualDayCopyRule>,
     weekNumber: Int,
-    weekMonday: LocalDate
+    weekSunday: LocalDate
 ): List<CourseBlock> {
     if (rules.isEmpty() || weekNumber < MIN_ACADEMIC_WEEK) return emptyList()
-    val normalizedMonday = mondayOf(weekMonday)
+    val normalizedSunday = sundayOf(weekSunday)
     val blocks = mutableListOf<CourseBlock>()
     val seenOccurrenceIds = mutableSetOf<String>()
 
     rules.forEach { rule ->
-        val targetDayOffset = ChronoUnit.DAYS.between(normalizedMonday, rule.targetDate).toInt()
+        val targetDayOffset = ChronoUnit.DAYS.between(normalizedSunday, rule.targetDate).toInt()
         // 目标日不在本周：本周没有任何要追加的副本。
         if (targetDayOffset !in 0..6) return@forEach
 
-        val sourceMonday = mondayOf(rule.sourceDate)
+        val sourceSunday = sundayOf(rule.sourceDate)
         val sourceWeek =
-            weekNumber + (ChronoUnit.DAYS.between(normalizedMonday, sourceMonday) / 7).toInt()
+            weekNumber + (ChronoUnit.DAYS.between(normalizedSunday, sourceSunday) / 7).toInt()
         // 源日期早于学期第一周时不做任何事；上界只是防御，日期被限制在学期内时不可能越过。
         if (sourceWeek < MIN_ACADEMIC_WEEK || sourceWeek > MAX_ACADEMIC_WEEK) return@forEach
 
         val sourceDayOfWeek = rule.sourceDate.dayOfWeek.value
-        val targetDayOfWeek = targetDayOffset + 1
+        // 偏移量从周日数起，而课次用的是教务口径（1=周一 … 7=周日），周日要换算回 7。
+        val targetDayOfWeek = if (targetDayOffset == 0) 7 else targetDayOffset
         courses.forEach { course ->
             course.occurrences
                 .filter { occurrence ->
@@ -89,11 +90,11 @@ fun manualCopyBlocksForWeek(
 fun countManualCopySourceBlocks(
     courses: List<ScheduleCourse>,
     sourceDate: LocalDate?,
-    semesterStartMonday: LocalDate?
+    semesterStartDate: LocalDate?
 ): Int {
-    if (sourceDate == null || semesterStartMonday == null) return 0
-    val weekNumber = weekNumberForDate(sourceDate, semesterStartMonday)
-    if (sourceDate.isBefore(mondayOf(semesterStartMonday))) return 0
+    if (sourceDate == null || semesterStartDate == null) return 0
+    val weekNumber = weekNumberForDate(sourceDate, semesterStartDate)
+    if (sourceDate.isBefore(sundayOf(semesterStartDate))) return 0
     return courses.sumOf { course ->
         course.occurrences.count { occurrence ->
             occurrence.dayOfWeek == sourceDate.dayOfWeek.value &&
@@ -144,12 +145,12 @@ fun decodeManualDayCopyRules(entries: Set<String>): Map<String, List<ManualDayCo
 private fun parseIsoDateOrNull(value: String): LocalDate? =
     runCatching { LocalDate.parse(value) }.getOrNull()
 
-/** 日期落在学期第几周（从 1 开始，按起始周一计算）；早于第一周时返回 0 或负数。 */
-fun weekNumberForDate(date: LocalDate, semesterStartMonday: LocalDate): Int {
-    val normalizedStart = mondayOf(semesterStartMonday)
+/** 日期落在学期第几周（从 1 开始，按起始周日计算）；早于第一周时返回 0 或负数。 */
+fun weekNumberForDate(date: LocalDate, semesterStartDate: LocalDate): Int {
+    val normalizedStart = sundayOf(semesterStartDate)
     return Math.floorDiv(ChronoUnit.DAYS.between(normalizedStart, date), 7L).toInt() + 1
 }
 
-/** 把日期对齐到所在周的周一。 */
-fun mondayOf(date: LocalDate): LocalDate =
-    date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+/** 把日期对齐到所在周的周日（一周的第一天）。 */
+fun sundayOf(date: LocalDate): LocalDate =
+    date.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))

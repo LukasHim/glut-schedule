@@ -5,7 +5,6 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color as AndroidColor
-import android.net.Uri
 import android.os.Bundle
 import android.os.Build
 import android.view.View
@@ -52,7 +51,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Refresh
@@ -60,8 +58,6 @@ import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -73,6 +69,9 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Slider
@@ -81,7 +80,6 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.NavigationDrawerItem
@@ -106,7 +104,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -171,11 +168,6 @@ import com.glut.schedule.ui.pages.CampusImageScreen
 import com.glut.schedule.ui.pages.CampusImageViewModel
 import com.glut.schedule.ui.pages.CampusImageViewModelFactory
 import com.glut.schedule.ui.pages.ScheduleScreen
-import com.glut.schedule.ui.pages.BackgroundCropScreen
-import com.glut.schedule.ui.pages.RemoteBackgroundGalleryScreen
-import com.glut.schedule.ui.pages.RemoteBackgroundGalleryViewModel
-import com.glut.schedule.ui.pages.RemoteBackgroundGalleryViewModelFactory
-import com.glut.schedule.ui.pages.remoteBackgroundCacheBadgeText
 import com.glut.schedule.partner.PartnerScheduleScreen
 import com.glut.schedule.partner.PartnerScheduleViewModel
 import com.glut.schedule.partner.PartnerScheduleViewModelFactory
@@ -184,12 +176,9 @@ import com.glut.schedule.ui.pages.ScheduleViewModel
 import com.glut.schedule.ui.pages.ScheduleViewModelFactory
 import com.glut.schedule.ui.components.AdvancedColorSheet
 import com.glut.schedule.ui.components.CourseColorPaletteSection
-import com.glut.schedule.ui.components.ScheduleBackgroundStore
-import com.glut.schedule.ui.components.ScheduleBackgroundImage
-import com.glut.schedule.ui.components.shouldUseCustomBackground
-import com.glut.schedule.ui.components.scheduleFirstFrameReady
-import com.glut.schedule.data.model.NormalizedCropRect
-import com.glut.schedule.data.model.snapBackgroundDimAmount
+import com.glut.schedule.ui.theme.DEFAULT_PARTNER_THEME_SEED_HEX
+import com.glut.schedule.ui.theme.parseSeedColor
+import com.glut.schedule.ui.theme.seedColorScheme
 import com.glut.schedule.ui.pages.ScoreDisplayPolicy
 import com.glut.schedule.ui.pages.ScoreScreen
 import com.glut.schedule.ui.pages.ScoreViewModel
@@ -219,9 +208,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.LocalDateTime
 import java.util.concurrent.atomic.AtomicBoolean
@@ -231,22 +217,8 @@ private enum class SettingsSubPage(val title: String) {
     ROOT("设置"),
     COURSE_COLORS("课程卡片颜色"),
     CLASS_PERIODS("上课时间"),
-    HOLIDAY_ADJUSTMENTS("调休调课"),
-    BACKGROUND_GALLERY("画廊")
+    HOLIDAY_ADJUSTMENTS("调休调课")
 }
-
-private data class PendingBackgroundCrop(
-    val uri: String,
-    val initialCrop: NormalizedCropRect?,
-    val remoteId: String? = null,
-    val remoteSha256: String? = null,
-    val remoteDisplayName: String? = null
-)
-
-private data class CommittableBackgroundSource(
-    val uri: String,
-    val releaseOnFailure: Boolean
-)
 
 class MainActivity : ComponentActivity() {
     private val firstFrameReady = AtomicBoolean(false)
@@ -285,8 +257,6 @@ class MainActivity : ComponentActivity() {
                 var showResetConfirm by remember { mutableStateOf(false) }
                 var settingsSubPage by remember { mutableStateOf(SettingsSubPage.ROOT) }
                 var drawerGestureBlocked by remember { mutableStateOf(false) }
-                var pendingBackgroundCrop by remember { mutableStateOf<PendingBackgroundCrop?>(null) }
-                var backgroundCropSaving by remember { mutableStateOf(false) }
                 var notificationPermissionGranted by remember {
                     mutableStateOf(ClassReminderNotifier.canPostNotifications(this@MainActivity))
                 }
@@ -304,10 +274,6 @@ class MainActivity : ComponentActivity() {
                 // 返回键：先关抽屉 → 再回到课表主页 → 最后退出
                 BackHandler(enabled = true) {
                     when {
-                        pendingBackgroundCrop != null -> {
-                            // 保存期间消费系统返回键，避免裁剪提交到一半时离开页面。
-                            if (!backgroundCropSaving) pendingBackgroundCrop = null
-                        }
                         drawerState.isOpen -> scope.launch { drawerState.close() }
                         settingsSubPage != SettingsSubPage.ROOT -> settingsSubPage = SettingsSubPage.ROOT
                         selectedItem != DrawerItem.Schedule -> selectedItem = DrawerItem.Schedule
@@ -381,12 +347,6 @@ class MainActivity : ComponentActivity() {
                         timorHolidayClient = container.timorHolidayClient
                     )
                 )
-                LaunchedEffect(Unit) {
-                    val currentBackgroundUri = container.settingsStore.backgroundPreferences.first().uri
-                    withContext(Dispatchers.IO) {
-                        releaseUnusedBackgroundPermissions(this@MainActivity, currentBackgroundUri)
-                    }
-                }
                 val courseTimeStatsViewModel: CourseTimeStatsViewModel = viewModel(
                     factory = CourseTimeStatsViewModelFactory(
                         sourceFlow = container.scheduleRepository.courseTimeSemesterSources
@@ -412,8 +372,7 @@ class MainActivity : ComponentActivity() {
                         gradeExamParser = container.gradeExamParser,
                         studyPlanParser = container.studyPlanParser,
                         semesterImportService = container.academicSemesterImportService,
-                        semesterBulkDownloadCoordinator = container.semesterBulkDownloadCoordinator,
-                        captchaOcr = container.captchaOcr
+                        semesterBulkDownloadCoordinator = container.semesterBulkDownloadCoordinator
                     )
                 )
                 LaunchedEffect(container.semesterBulkDownloadCoordinator) {
@@ -455,8 +414,8 @@ class MainActivity : ComponentActivity() {
                     )
                 )
                 val campusType by container.settingsStore.campusType.collectAsStateWithLifecycle(initialValue = CampusType.GUILIN)
-                val showBackground by container.settingsStore.showScheduleBackground
-                    .collectAsStateWithLifecycle(initialValue = false)
+                val partnerThemeSeed by container.settingsStore.partnerThemeSeed
+                    .collectAsStateWithLifecycle(initialValue = "")
                 val reminderEnabled by container.settingsStore.classReminderEnabled
                     .collectAsStateWithLifecycle(initialValue = false)
                 val reminderMinutes by container.settingsStore.classReminderMinutes
@@ -475,20 +434,11 @@ class MainActivity : ComponentActivity() {
                         factory = FinanceViewModelFactory(
                             gateway = container.financeApiService,
                             store = container.financeStore,
-                            campus = campusType
+                            campus = campusType,
+                            captchaOcr = container.captchaOcr
                         )
                     ))
                 } else null
-                val remoteBackgroundGalleryViewModel: RemoteBackgroundGalleryViewModel? =
-                    if (selectedItem == DrawerItem.Settings && settingsSubPage == SettingsSubPage.BACKGROUND_GALLERY) {
-                        viewModel(
-                            key = "remote-background-gallery",
-                            factory = RemoteBackgroundGalleryViewModelFactory(
-                                container.remoteBackgroundRepository,
-                                container.remoteArtworkSaver
-                            )
-                        )
-                    } else null
 
                 LaunchedEffect(campusType) {
                     // 切换到新来源后，当前停留的页面可能在新来源下已经不可用
@@ -500,48 +450,11 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                val context = androidx.compose.ui.platform.LocalContext.current
-                val backgroundPicker = rememberLauncherForActivityResult(
-                    contract = ActivityResultContracts.OpenDocument()
-                ) { uri: android.net.Uri? ->
-                    uri ?: return@rememberLauncherForActivityResult
-                    // 长期读取权限延后到用户确认裁剪时获取；取消选择不会遗留授权。
-                    pendingBackgroundCrop = PendingBackgroundCrop(uri.toString(), initialCrop = null)
-                }
-
-                val clearBackground: () -> Unit = {
-                    val oldUri = scheduleViewModel.uiState.value.customBackgroundUri
-                    scope.launch {
-                        withContext(NonCancellable) {
-                            container.settingsStore.setCustomBackground("", crop = null)
-                            container.backgroundStore.evictSource(oldUri)
-                            withContext(Dispatchers.IO) {
-                                releaseBackgroundSource(this@MainActivity, oldUri)
-                            }
-                        }
-                    }
-                }
-
                 val isSchedulePage =
                     selectedItem == DrawerItem.Schedule || selectedItem == DrawerItem.PartnerSchedule
-                val isImmersiveArtwork = if (remoteBackgroundGalleryViewModel != null) {
-                    val galleryState by remoteBackgroundGalleryViewModel.uiState.collectAsStateWithLifecycle()
-                    galleryState.selectedItem != null
-                } else {
-                    false
-                }
-                // 背景图与画廊大图都是深色底，状态栏必须用浅色图标；普通主题页面跟随明暗模式。
-                val artworkChrome = pendingBackgroundCrop == null && (
-                    isImmersiveArtwork ||
-                        selectedItem == DrawerItem.PartnerSchedule ||
-                        (selectedItem == DrawerItem.Schedule && showBackground)
-                    )
 
-                DisposableEffect(artworkChrome, darkTheme) {
-                    applySystemBarStyle(
-                        lightIcons = artworkChrome,
-                        darkTheme = darkTheme
-                    )
+                DisposableEffect(darkTheme) {
+                    applySystemBarStyle(darkTheme = darkTheme)
                     onDispose { }
                 }
 
@@ -647,7 +560,7 @@ class MainActivity : ComponentActivity() {
                     Scaffold(
                         topBar = {
                             // 课程表页面不显示单独的 TopAppBar，菜单按钮集成在 ScheduleHeader 中
-                            if (!isSchedulePage && !isImmersiveArtwork) {
+                            if (!isSchedulePage) {
                                 TopAppBar(
                                     title = {
                                         Text(
@@ -753,48 +666,6 @@ class MainActivity : ComponentActivity() {
                                                     Icon(Icons.Outlined.Refresh, contentDescription = "刷新")
                                                 }
                                             }
-                                            DrawerItem.Settings -> remoteBackgroundGalleryViewModel?.let { viewModel ->
-                                                val galleryState by viewModel.uiState.collectAsStateWithLifecycle()
-                                                val downloadedCount = galleryState.downloaded.size
-                                                val badgeText = remoteBackgroundCacheBadgeText(downloadedCount)
-                                                IconButton(onClick = { viewModel.setDownloadedManagerVisible(true) }) {
-                                                    BadgedBox(
-                                                        badge = {
-                                                            badgeText?.let { count ->
-                                                                Badge(
-                                                                    containerColor = MaterialTheme.colorScheme.primary,
-                                                                    contentColor = MaterialTheme.colorScheme.onPrimary
-                                                                ) { Text(count) }
-                                                            }
-                                                        }
-                                                    ) {
-                                                        Icon(
-                                                            Icons.Outlined.Storage,
-                                                            contentDescription = if (downloadedCount == 0) {
-                                                                "缓存管理，暂无原图缓存"
-                                                            } else {
-                                                                "缓存管理，共 $downloadedCount 项"
-                                                            }
-                                                        )
-                                                    }
-                                                }
-                                                IconButton(
-                                                    onClick = viewModel::refresh,
-                                                    enabled = !galleryState.isLoading
-                                                ) {
-                                                    if (galleryState.isLoading) {
-                                                        CircularProgressIndicator(
-                                                            modifier = Modifier.size(22.dp),
-                                                            strokeWidth = 2.dp
-                                                        )
-                                                    } else {
-                                                        Icon(
-                                                            Icons.Outlined.Refresh,
-                                                            contentDescription = "刷新画廊"
-                                                        )
-                                                    }
-                                                }
-                                            }
                                             else -> {}
                                         }
                                     },
@@ -807,25 +678,18 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         },
-                        // 课程表页面不消耗系统栏空间，让背景铺满全屏
-                        contentWindowInsets = if (isSchedulePage || isImmersiveArtwork) {
+                        // 课程表页面不消耗系统栏空间，让页面背景铺满全屏
+                        contentWindowInsets = if (isSchedulePage) {
                             WindowInsets(0)
                         } else {
                             ScaffoldDefaults.contentWindowInsets
                         },
-                        containerColor = if (isImmersiveArtwork) {
-                            MaterialTheme.colorScheme.surfaceContainerLowest
-                        } else if (isSchedulePage) {
-                            MaterialTheme.colorScheme.background
-                        } else {
-                            MaterialTheme.colorScheme.background
-                        }
+                        containerColor = MaterialTheme.colorScheme.background
                     ) { padding ->
                         Box(modifier = Modifier.padding(padding)) {
                             when (selectedItem) {
                                 DrawerItem.Schedule -> ScheduleDestination(
                                     viewModel = scheduleViewModel,
-                                    backgroundStore = container.backgroundStore,
                                     onFirstFrameReady = ::releaseFirstFrame,
                                     onImportClick = { selectedItem = DrawerItem.Import },
                                     onExamClick = { selectedItem = DrawerItem.Exam },
@@ -833,8 +697,13 @@ class MainActivity : ComponentActivity() {
                                 )
                                 DrawerItem.PartnerSchedule -> PartnerScheduleDestination(
                                     viewModel = partnerScheduleViewModel,
-                                    scheduleViewModel = scheduleViewModel,
-                                    backgroundStore = container.backgroundStore,
+                                    themeSeedHex = partnerThemeSeed,
+                                    darkTheme = darkTheme,
+                                    onThemeSeedChange = { hex ->
+                                        scope.launch {
+                                            container.settingsStore.setPartnerThemeSeed(hex)
+                                        }
+                                    },
                                     onDrawerOpen = { scope.launch { drawerState.open() } }
                                 )
                                 DrawerItem.Score -> ScoreScreen(
@@ -881,8 +750,6 @@ class MainActivity : ComponentActivity() {
                                 DrawerItem.Settings -> ScheduleSettingsDestination(
                                     viewModel = scheduleViewModel,
                                     holidayAdjustmentsViewModel = holidayAdjustmentsViewModel,
-                                    backgroundStore = container.backgroundStore,
-                                    remoteBackgroundGalleryViewModel = remoteBackgroundGalleryViewModel,
                                     subPage = settingsSubPage,
                                     themeMode = themeMode,
                                     dynamicColorEnabled = dynamicColorEnabled,
@@ -892,12 +759,6 @@ class MainActivity : ComponentActivity() {
                                     onDynamicColorChange = { enabled ->
                                         scope.launch {
                                             container.settingsStore.setDynamicColorEnabled(enabled)
-                                        }
-                                    },
-                                    showBackground = showBackground,
-                                    onShowBackgroundChange = { enabled ->
-                                        scope.launch {
-                                            container.settingsStore.setShowScheduleBackground(enabled)
                                         }
                                     },
                                     reminderEnabled = reminderEnabled,
@@ -928,18 +789,6 @@ class MainActivity : ComponentActivity() {
                                             )
                                         }
                                     },
-                                    onPickBackground = { backgroundPicker.launch(arrayOf("image/*")) },
-                                    onRecropBackground = { request -> pendingBackgroundCrop = request },
-                                    onClearBackground = clearBackground,
-                                    onUseRemoteBackground = { asset ->
-                                        pendingBackgroundCrop = PendingBackgroundCrop(
-                                            uri = asset.uri,
-                                            initialCrop = null,
-                                            remoteId = asset.id,
-                                            remoteSha256 = asset.sha256,
-                                            remoteDisplayName = asset.displayName
-                                        )
-                                    },
                                     onSubPageChange = { settingsSubPage = it },
                                     onReset = { showResetConfirm = true }
                                 )
@@ -959,106 +808,6 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                }
-
-                pendingBackgroundCrop?.let { request ->
-                    val metrics = resources.displayMetrics
-                    BackgroundCropScreen(
-                        uri = request.uri,
-                        initialCrop = request.initialCrop,
-                        targetWidth = metrics.widthPixels,
-                        targetHeight = metrics.heightPixels,
-                        backgroundStore = container.backgroundStore,
-                        isSaving = backgroundCropSaving,
-                        onCancel = {
-                            pendingBackgroundCrop = null
-                        },
-                        onConfirm = { crop ->
-                            backgroundCropSaving = true
-                            scope.launch {
-                                var preparedSource: CommittableBackgroundSource? = null
-                                var committed = false
-                                try {
-                                    val oldUri = scheduleViewModel.uiState.value.customBackgroundUri
-                                    withContext(NonCancellable + Dispatchers.IO) {
-                                        // 在不可取消区间内同时取得资源和记录句柄，确保 finally 一定能回收。
-                                        preparedSource = if (request.remoteId != null) {
-                                            // 远程原图已在持久下载库中，不能复制进自定义目录或随切换被清理。
-                                            CommittableBackgroundSource(request.uri, releaseOnFailure = false)
-                                        } else {
-                                            prepareBackgroundSourceForCommit(
-                                                this@MainActivity, request.uri, currentUri = oldUri
-                                            )
-                                        }
-                                    }
-                                    val finalSource = preparedSource
-                                    if (finalSource == null) {
-                                        android.widget.Toast.makeText(
-                                            context,
-                                            "无法长期读取这张图片，请重新选择",
-                                            android.widget.Toast.LENGTH_SHORT
-                                        ).show()
-                                        return@launch
-                                    }
-                                    val loaded = container.backgroundStore.preload(
-                                        uri = finalSource.uri,
-                                        crop = crop,
-                                        targetWidth = metrics.widthPixels,
-                                        targetHeight = metrics.heightPixels
-                                    )
-                                    if (loaded) {
-                                        withContext(NonCancellable) {
-                                            // DataStore 落盘与 committed 标志必须属于同一原子区间。
-                                            if (request.remoteId != null && request.remoteSha256 != null) {
-                                                container.settingsStore.setRemoteBackground(
-                                                    uri = finalSource.uri,
-                                                    crop = crop,
-                                                    id = request.remoteId,
-                                                    sha256 = request.remoteSha256,
-                                                    displayName = request.remoteDisplayName.orEmpty()
-                                                )
-                                            } else {
-                                                container.settingsStore.setCustomBackground(finalSource.uri, crop)
-                                            }
-                                            // 用户主动选了背景，就默认开启显示；之后仍可在设置里单独关闭。
-                                            container.settingsStore.setShowScheduleBackground(true)
-                                            committed = true
-                                        }
-                                        pendingBackgroundCrop = null
-                                        if (oldUri != finalSource.uri) {
-                                            container.backgroundStore.evictSource(oldUri)
-                                            withContext(NonCancellable + Dispatchers.IO) {
-                                                releaseBackgroundSource(this@MainActivity, oldUri)
-                                            }
-                                        }
-                                    } else {
-                                        android.widget.Toast.makeText(
-                                            context,
-                                            "背景处理失败，已保留当前背景",
-                                            android.widget.Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
-                                } catch (cancellation: CancellationException) {
-                                    throw cancellation
-                                } catch (_: Exception) {
-                                    android.widget.Toast.makeText(
-                                        context,
-                                        "背景处理失败，已保留当前背景",
-                                        android.widget.Toast.LENGTH_SHORT
-                                    ).show()
-                                } finally {
-                                    if (!committed) {
-                                        preparedSource?.takeIf { it.releaseOnFailure }?.let { source ->
-                                            withContext(NonCancellable + Dispatchers.IO) {
-                                                releaseBackgroundSource(this@MainActivity, source.uri)
-                                            }
-                                        }
-                                    }
-                                    backgroundCropSaving = false
-                                }
-                            }
-                        }
-                    )
                 }
 
                 // Update dialog
@@ -1094,8 +843,6 @@ class MainActivity : ComponentActivity() {
                                                     .cancelForAccountChange()
                                             },
                                             clearData = {
-                                                val backgroundUriToRelease =
-                                                    scheduleViewModel.uiState.value.customBackgroundUri
                                                 directLoginViewModel.clearLoginState()
                                                 fitnessScoreViewModel.clearData()
                                                 financeViewModels.clearAll()
@@ -1104,14 +851,6 @@ class MainActivity : ComponentActivity() {
                                                 container.settingsStore.clearAll()
                                                 container.academicSessionStore.clearAll()
                                                 container.credentialStore.clearCredentials()
-                                                withContext(Dispatchers.IO) {
-                                                    releaseBackgroundSource(
-                                                        this@MainActivity,
-                                                        backgroundUriToRelease
-                                                    )
-                                                    clearOwnedBackgroundSources(this@MainActivity)
-                                                    container.remoteBackgroundRepository.clearAllData()
-                                                }
                                             }
                                         )
                                     }
@@ -1160,13 +899,13 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    private fun applySystemBarStyle(lightIcons: Boolean, darkTheme: Boolean) {
+    private fun applySystemBarStyle(darkTheme: Boolean) {
         window.statusBarColor = AndroidColor.TRANSPARENT
         val controller = WindowCompat.getInsetsController(window, window.decorView)
-        // lightIcons = true 表示背景是深色（背景图/画廊大图），状态栏要用白色图标。
-        controller.isAppearanceLightStatusBars = !lightIcons
-        controller.isAppearanceLightNavigationBars = !lightIcons
-        window.navigationBarColor = if (lightIcons || darkTheme) {
+        // 页面背景跟随应用主题，状态栏图标随之切换明暗。
+        controller.isAppearanceLightStatusBars = !darkTheme
+        controller.isAppearanceLightNavigationBars = !darkTheme
+        window.navigationBarColor = if (darkTheme) {
             AndroidColor.rgb(0x15, 0x13, 0x0C)
         } else {
             AndroidColor.rgb(0xFF, 0xF9, 0xEE)
@@ -1180,56 +919,18 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun ScheduleDestination(
     viewModel: ScheduleViewModel,
-    backgroundStore: ScheduleBackgroundStore,
     onFirstFrameReady: () -> Unit,
     onImportClick: () -> Unit,
     onExamClick: () -> Unit,
     onDrawerOpen: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val metrics = context.resources.displayMetrics
-    var backgroundCacheRevision by remember(uiState.customBackgroundUri, uiState.customBackgroundCrop) { mutableIntStateOf(0) }
-    LaunchedEffect(uiState.customBackgroundUri, uiState.customBackgroundCrop) {
-        val uri = uiState.customBackgroundUri
-        if (shouldUseCustomBackground(uri) && backgroundStore.get(
-                uri, uiState.customBackgroundCrop, metrics.widthPixels, metrics.heightPixels
-            ) == null
-        ) {
-            val loaded = backgroundStore.preload(
-                uri, uiState.customBackgroundCrop, metrics.widthPixels, metrics.heightPixels
-            )
-            if (!loaded) viewModel.clearCustomBackground()
-            backgroundCacheRevision++
-        }
-    }
-    val backgroundBitmap = remember(uiState.customBackgroundUri, uiState.customBackgroundCrop, backgroundCacheRevision) {
-        if (shouldUseCustomBackground(uiState.customBackgroundUri)) {
-            backgroundStore.get(
-                uiState.customBackgroundUri,
-                uiState.customBackgroundCrop,
-                metrics.widthPixels,
-                metrics.heightPixels
-            )
-        } else {
-            null
-        }
-    }
-    LaunchedEffect(uiState.isInitialized, uiState.customBackgroundUri, backgroundBitmap) {
-        if (scheduleFirstFrameReady(
-                isInitialized = uiState.isInitialized,
-                // 背景关闭时不需要等待图片解码，首帧立刻放行。
-                backgroundUri = if (uiState.showBackground) uiState.customBackgroundUri else "",
-                customBitmapAvailable = backgroundBitmap != null
-            )
-        ) {
-            onFirstFrameReady()
-        }
+    LaunchedEffect(uiState.isInitialized) {
+        if (uiState.isInitialized) onFirstFrameReady()
     }
     ScheduleScreen(
         viewModel = viewModel,
         uiState = uiState,
-        customBackgroundBitmap = backgroundBitmap,
         onImportClick = onImportClick,
         onExamClick = onExamClick,
         onDrawerOpen = onDrawerOpen
@@ -1239,74 +940,41 @@ private fun ScheduleDestination(
 @Composable
 private fun PartnerScheduleDestination(
     viewModel: PartnerScheduleViewModel,
-    scheduleViewModel: ScheduleViewModel,
-    backgroundStore: ScheduleBackgroundStore,
+    themeSeedHex: String,
+    darkTheme: Boolean,
+    onThemeSeedChange: (String) -> Unit,
     onDrawerOpen: () -> Unit
 ) {
-    val scheduleState by scheduleViewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-    val metrics = context.resources.displayMetrics
-    var backgroundCacheRevision by remember(scheduleState.customBackgroundUri, scheduleState.customBackgroundCrop) { mutableIntStateOf(0) }
-
-    LaunchedEffect(scheduleState.customBackgroundUri, scheduleState.customBackgroundCrop) {
-        val uri = scheduleState.customBackgroundUri
-        if (shouldUseCustomBackground(uri) && backgroundStore.get(
-                uri, scheduleState.customBackgroundCrop, metrics.widthPixels, metrics.heightPixels
-            ) == null
-        ) {
-            val loaded = backgroundStore.preload(
-                uri, scheduleState.customBackgroundCrop, metrics.widthPixels, metrics.heightPixels
-            )
-            if (!loaded) scheduleViewModel.clearCustomBackground()
-            backgroundCacheRevision++
-        }
+    val seed = parseSeedColor(themeSeedHex)
+        ?: parseSeedColor(DEFAULT_PARTNER_THEME_SEED_HEX)
+        ?: androidx.compose.ui.graphics.Color(0xFFD94F78)
+    val scheme = remember(seed, darkTheme) { seedColorScheme(seed, darkTheme) }
+    MaterialTheme(colorScheme = scheme) {
+        PartnerScheduleScreen(
+            viewModel = viewModel,
+            themeSeedHex = themeSeedHex,
+            onThemeSeedChange = onThemeSeedChange,
+            onDrawerOpen = onDrawerOpen,
+            onInviteExpired = viewModel::expireInviteSilently
+        )
     }
-    val backgroundBitmap = remember(scheduleState.customBackgroundUri, scheduleState.customBackgroundCrop, backgroundCacheRevision) {
-        if (shouldUseCustomBackground(scheduleState.customBackgroundUri)) {
-            backgroundStore.get(
-                scheduleState.customBackgroundUri,
-                scheduleState.customBackgroundCrop,
-                metrics.widthPixels,
-                metrics.heightPixels
-            )
-        } else {
-            null
-        }
-    }
-
-    PartnerScheduleScreen(
-        viewModel = viewModel,
-        customBackgroundUri = scheduleState.customBackgroundUri,
-        customBackgroundBitmap = backgroundBitmap,
-        backgroundDimAmount = scheduleState.backgroundDimAmount,
-        onDrawerOpen = onDrawerOpen,
-        onInviteExpired = viewModel::expireInviteSilently
-    )
 }
 
 @Composable
 private fun ScheduleSettingsDestination(
     viewModel: ScheduleViewModel,
     holidayAdjustmentsViewModel: HolidayAdjustmentsViewModel,
-    backgroundStore: ScheduleBackgroundStore,
-    remoteBackgroundGalleryViewModel: RemoteBackgroundGalleryViewModel?,
     subPage: SettingsSubPage,
     themeMode: ThemeMode,
     dynamicColorEnabled: Boolean,
     onThemeModeChange: (ThemeMode) -> Unit,
     onDynamicColorChange: (Boolean) -> Unit,
-    showBackground: Boolean,
-    onShowBackgroundChange: (Boolean) -> Unit,
     reminderEnabled: Boolean,
     reminderMinutes: Int,
     notificationPermissionGranted: Boolean,
     onReminderEnabledChange: (Boolean) -> Unit,
     onReminderMinutesChange: (Int) -> Unit,
     onRequestNotificationPermission: () -> Unit,
-    onPickBackground: () -> Unit,
-    onRecropBackground: (PendingBackgroundCrop) -> Unit,
-    onClearBackground: () -> Unit,
-    onUseRemoteBackground: (com.glut.schedule.service.background.DownloadedRemoteBackground) -> Unit,
     onSubPageChange: (SettingsSubPage) -> Unit,
     onReset: () -> Unit
 ) {
@@ -1336,14 +1004,6 @@ private fun ScheduleSettingsDestination(
             onResetPeriods = viewModel::resetClassPeriods,
             onSetGuilinSubCampus = viewModel::setGuilinSubCampus
         )
-        SettingsSubPage.BACKGROUND_GALLERY -> remoteBackgroundGalleryViewModel?.let { galleryViewModel ->
-            RemoteBackgroundGalleryScreen(
-                viewModel = galleryViewModel,
-                backgroundStore = backgroundStore,
-                activeBackgroundUri = uiState.customBackgroundUri,
-                onUseDownloaded = onUseRemoteBackground
-            )
-        }
         SettingsSubPage.ROOT -> SettingsPage(
             showWeekend = uiState.showWeekend,
             onShowWeekendChange = viewModel::setShowWeekend,
@@ -1358,32 +1018,12 @@ private fun ScheduleSettingsDestination(
             dynamicColorEnabled = dynamicColorEnabled,
             onThemeModeChange = onThemeModeChange,
             onDynamicColorChange = onDynamicColorChange,
-            showBackground = showBackground,
-            onShowBackgroundChange = onShowBackgroundChange,
             reminderEnabled = reminderEnabled,
             reminderMinutes = reminderMinutes,
             notificationPermissionGranted = notificationPermissionGranted,
             onReminderEnabledChange = onReminderEnabledChange,
             onReminderMinutesChange = onReminderMinutesChange,
             onRequestNotificationPermission = onRequestNotificationPermission,
-            customBackgroundUri = uiState.customBackgroundUri,
-            customBackgroundCrop = uiState.customBackgroundCrop,
-            backgroundDimAmount = uiState.backgroundDimAmount,
-            backgroundStore = backgroundStore,
-            hasCustomBackground = shouldUseCustomBackground(uiState.customBackgroundUri),
-            onPickBackground = onPickBackground,
-            onRecropBackground = {
-                onRecropBackground(PendingBackgroundCrop(
-                    uri = uiState.customBackgroundUri,
-                    initialCrop = uiState.customBackgroundCrop,
-                    remoteId = uiState.remoteBackgroundId.takeIf(String::isNotBlank),
-                    remoteSha256 = uiState.remoteBackgroundSha256.takeIf(String::isNotBlank),
-                    remoteDisplayName = uiState.remoteBackgroundDisplayName.takeIf(String::isNotBlank)
-                ))
-            },
-            onBackgroundDimAmountChange = viewModel::setBackgroundDimAmount,
-            onClearBackground = onClearBackground,
-            onBuiltInBackgrounds = { onSubPageChange(SettingsSubPage.BACKGROUND_GALLERY) },
             onCourseColors = { onSubPageChange(SettingsSubPage.COURSE_COLORS) },
             classPeriodsEnabled = campusCapabilities.supportsClassPeriodSettings,
             onClassPeriods = { onSubPageChange(SettingsSubPage.CLASS_PERIODS) },
@@ -1502,64 +1142,19 @@ private fun SettingsPage(
     dynamicColorEnabled: Boolean = false,
     onThemeModeChange: (ThemeMode) -> Unit = {},
     onDynamicColorChange: (Boolean) -> Unit = {},
-    showBackground: Boolean = false,
-    onShowBackgroundChange: (Boolean) -> Unit = {},
     reminderEnabled: Boolean = false,
     reminderMinutes: Int = 10,
     notificationPermissionGranted: Boolean = false,
     onReminderEnabledChange: (Boolean) -> Unit = {},
     onReminderMinutesChange: (Int) -> Unit = {},
     onRequestNotificationPermission: () -> Unit = {},
-    customBackgroundUri: String = "",
-    customBackgroundCrop: NormalizedCropRect? = null,
-    backgroundDimAmount: Float = 0.5f,
-    backgroundStore: ScheduleBackgroundStore,
-    hasCustomBackground: Boolean = false,
-    onPickBackground: () -> Unit = {},
-    onRecropBackground: () -> Unit = {},
-    onBackgroundDimAmountChange: (Float) -> Unit = {},
-    onClearBackground: () -> Unit = {},
-    onBuiltInBackgrounds: () -> Unit = {},
     onCourseColors: () -> Unit = {},
     classPeriodsEnabled: Boolean = true,
     onClassPeriods: () -> Unit = {},
     onHolidayAdjustments: () -> Unit = {},
     onReset: () -> Unit = {}
 ) {
-    val context = LocalContext.current
-    val metrics = context.resources.displayMetrics
-    var backgroundPreviewRevision by remember(customBackgroundUri, customBackgroundCrop) { mutableIntStateOf(0) }
-    var previewDimAmount by remember(backgroundDimAmount) { mutableStateOf(backgroundDimAmount) }
     var previewReminderMinutes by remember(reminderMinutes) { mutableIntStateOf(reminderMinutes) }
-    LaunchedEffect(customBackgroundUri, customBackgroundCrop) {
-        if (
-            shouldUseCustomBackground(customBackgroundUri) &&
-            backgroundStore.get(
-                customBackgroundUri,
-                customBackgroundCrop,
-                metrics.widthPixels,
-                metrics.heightPixels
-            ) == null
-        ) {
-            backgroundStore.preload(
-                customBackgroundUri,
-                customBackgroundCrop,
-                metrics.widthPixels,
-                metrics.heightPixels
-            )
-            backgroundPreviewRevision++
-        }
-    }
-    val previewBitmap = remember(customBackgroundUri, customBackgroundCrop, backgroundPreviewRevision) {
-        if (shouldUseCustomBackground(customBackgroundUri)) {
-            backgroundStore.get(
-                customBackgroundUri,
-                customBackgroundCrop,
-                metrics.widthPixels,
-                metrics.heightPixels
-            )
-        } else null
-    }
     val dynamicColorAvailable = isDynamicColorAvailable()
 
     LazyColumn(
@@ -1611,17 +1206,23 @@ private fun SettingsPage(
                         color = MaterialTheme.colorScheme.onSurface,
                         style = MaterialTheme.typography.bodyLarge
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(
-                            ThemeMode.SYSTEM to "跟随系统",
-                            ThemeMode.LIGHT to "浅色",
-                            ThemeMode.DARK to "深色"
-                        ).forEach { (mode, label) ->
-                            FilterChip(
+                    val modes = listOf(
+                        ThemeMode.SYSTEM to "跟随系统",
+                        ThemeMode.LIGHT to "浅色",
+                        ThemeMode.DARK to "深色"
+                    )
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        modes.forEachIndexed { index, (mode, label) ->
+                            SegmentedButton(
                                 selected = themeMode == mode,
                                 onClick = { onThemeModeChange(mode) },
-                                label = { Text(label) }
-                            )
+                                shape = SegmentedButtonDefaults.itemShape(
+                                    index = index,
+                                    count = modes.size
+                                )
+                            ) {
+                                Text(label)
+                            }
                         }
                     }
                 }
@@ -1637,99 +1238,6 @@ private fun SettingsPage(
                     enabled = dynamicColorAvailable,
                     onCheckedChange = onDynamicColorChange
                 )
-            }
-        }
-
-        item { SettingsSectionTitle("课表外观") }
-        item {
-            SettingsCard {
-                SettingsSwitchRow(
-                    title = "显示课表背景",
-                    supporting = "关闭后使用普通页面主题背景",
-                    checked = showBackground,
-                    onCheckedChange = onShowBackgroundChange
-                )
-                if (showBackground) {
-                    SettingsDivider()
-                    Column(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(150.dp)
-                                .clip(MaterialTheme.shapes.medium)
-                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                        ) {
-                            ScheduleBackgroundImage(
-                                modifier = Modifier.matchParentSize(),
-                                customBackgroundUri = customBackgroundUri,
-                                customBackgroundBitmap = previewBitmap,
-                                dimAmount = previewDimAmount
-                            )
-                            Column(
-                                modifier = Modifier.align(Alignment.Center).padding(16.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    "背景效果预览",
-                                    color = Color.White,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    "软件工程 · 08:00",
-                                    color = Color.White.copy(alpha = 0.82f),
-                                    fontSize = 13.sp
-                                )
-                            }
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                "背景蒙黑度",
-                                color = MaterialTheme.colorScheme.onSurface,
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Text(
-                                "${(previewDimAmount * 100).roundToInt()}%",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                        Slider(
-                            value = previewDimAmount,
-                            onValueChange = { previewDimAmount = snapBackgroundDimAmount(it) },
-                            onValueChangeFinished = { onBackgroundDimAmountChange(previewDimAmount) },
-                            valueRange = 0f..0.8f,
-                            steps = 15
-                        )
-                    }
-                }
-                SettingsDivider()
-                SettingsClickRow(
-                    title = "画廊",
-                    onClick = onBuiltInBackgrounds
-                )
-                SettingsDivider()
-                SettingsClickRow(
-                    title = "自定义背景",
-                    onClick = onPickBackground
-                )
-                if (hasCustomBackground) {
-                    SettingsDivider()
-                    SettingsClickRow(
-                        title = "重新裁剪",
-                        onClick = onRecropBackground
-                    )
-                    SettingsDivider()
-                    SettingsClickRow(
-                        title = "恢复默认背景",
-                        destructive = true,
-                        onClick = onClearBackground
-                    )
-                }
             }
         }
 
@@ -2261,102 +1769,6 @@ private fun UpdateDialog(
                 }
             )
         }
-    }
-}
-
-/**
- * 确认裁剪后才获取长期 URI 权限；提供方不支持时复制原图到私有目录作为可靠后备。
- */
-private fun prepareBackgroundSourceForCommit(
-    context: Context,
-    sourceUri: String,
-    currentUri: String
-): CommittableBackgroundSource? {
-    if (sourceUri == currentUri) return CommittableBackgroundSource(sourceUri, releaseOnFailure = false)
-    val source = runCatching { Uri.parse(sourceUri) }.getOrNull() ?: return null
-    val persisted = runCatching {
-        context.contentResolver.takePersistableUriPermission(
-            source,
-            Intent.FLAG_GRANT_READ_URI_PERMISSION
-        )
-    }.isSuccess
-    if (persisted) return CommittableBackgroundSource(sourceUri, releaseOnFailure = true)
-
-    val directory = File(context.filesDir, "custom_backgrounds").apply { mkdirs() }
-    val token = "${System.currentTimeMillis()}_${System.nanoTime()}"
-    val temporary = File(directory, "source_$token.tmp")
-    val destination = File(directory, "source_$token")
-    return runCatching {
-        context.contentResolver.openInputStream(source)?.use { input ->
-            temporary.outputStream().use(input::copyTo)
-        } ?: error("无法打开背景图片")
-        check(temporary.length() > 0L) { "背景图片为空" }
-        check(temporary.renameTo(destination)) { "背景图片保存失败" }
-        CommittableBackgroundSource(Uri.fromFile(destination).toString(), releaseOnFailure = true)
-    }.onFailure {
-        temporary.delete()
-        destination.delete()
-    }.getOrNull()
-}
-
-private fun releaseBackgroundSource(context: Context, uriText: String) {
-    if (uriText.isBlank()) return
-    val uri = runCatching { Uri.parse(uriText) }.getOrNull() ?: return
-    if (uri.scheme == "content") {
-        runCatching {
-            context.contentResolver.releasePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION
-            )
-        }
-    } else {
-        deleteOwnedBackgroundSource(context, uriText)
-    }
-}
-
-/** 启动时回收未被当前背景引用的持久授权、私有副本和中断复制留下的临时文件。 */
-private fun releaseUnusedBackgroundPermissions(context: Context, currentUri: String) {
-    context.contentResolver.persistedUriPermissions
-        .filter { permission -> permission.uri.toString() != currentUri }
-        .forEach { permission ->
-            runCatching {
-                context.contentResolver.releasePersistableUriPermission(
-                    permission.uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-            }
-        }
-    val root = runCatching { File(context.filesDir, "custom_backgrounds").canonicalFile }.getOrNull() ?: return
-    val currentFile = runCatching {
-        Uri.parse(currentUri).takeIf { it.scheme == "file" }?.path?.let(::File)?.canonicalFile
-    }.getOrNull()
-    root.listFiles()?.forEach { child ->
-        runCatching {
-            val target = child.canonicalFile
-            if (target.parentFile == root && target != currentFile) target.delete()
-        }
-    }
-}
-
-/** 只允许删除应用私有背景目录内的文件，外部相册 URI 永远不会被触碰。 */
-private fun deleteOwnedBackgroundSource(context: Context, uriText: String) {
-    runCatching {
-        val uri = Uri.parse(uriText)
-        if (uri.scheme != "file") return@runCatching
-        val root = File(context.filesDir, "custom_backgrounds").canonicalFile
-        val target = uri.path?.let(::File)?.canonicalFile ?: return@runCatching
-        if (target.parentFile == root) target.delete()
-    }
-}
-
-private fun clearOwnedBackgroundSources(context: Context) {
-    runCatching {
-        val root = File(context.filesDir, "custom_backgrounds").canonicalFile
-        root.listFiles()?.forEach { child ->
-            val target = child.canonicalFile
-            if (target.isFile && target.parentFile == root) target.delete()
-        }
-        root.delete()
     }
 }
 

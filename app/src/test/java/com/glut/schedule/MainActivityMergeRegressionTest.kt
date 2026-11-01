@@ -14,11 +14,6 @@ class MainActivityMergeRegressionTest {
         (if (module.exists()) module else
             File("app/src/main/java/com/glut/schedule/MainActivity.kt")).readText()
     }
-    private val gallerySource by lazy {
-        val module = File("src/main/java/com/glut/schedule/ui/pages/RemoteBackgroundGalleryScreen.kt")
-        (if (module.exists()) module else
-            File("app/src/main/java/com/glut/schedule/ui/pages/RemoteBackgroundGalleryScreen.kt")).readText()
-    }
 
     @Test
     fun drawerUsesSeventyFivePercentOfScreenWidth() {
@@ -37,21 +32,17 @@ class MainActivityMergeRegressionTest {
     }
 
     @Test
-    fun backgroundGalleryShowsOnlyTheRemoteCatalog() {
-        assertTrue(source.contains("BACKGROUND_GALLERY(\"画廊\")"))
-        assertTrue(source.contains("SettingsSubPage.BACKGROUND_GALLERY -> remoteBackgroundGalleryViewModel?.let"))
-        assertTrue(source.contains("title = \"画廊\""))
-        assertTrue(source.contains("title = \"自定义背景\""))
-        assertFalse(gallerySource.contains("Text(\"内置背景\""))
-        assertFalse(gallerySource.contains("Text(\"在线画廊\""))
-        assertFalse(gallerySource.contains("BuiltInGalleryCard"))
+    fun themeModeUsesMd3SegmentedButtons() {
+        assertTrue(source.contains("SingleChoiceSegmentedButtonRow("))
+        assertTrue(source.contains("SegmentedButton("))
+        assertFalse(source.contains("FilterChip("))
     }
 
     @Test
-    fun recroppingRemoteBackgroundKeepsItsRemoteIdentity() {
-        assertTrue(source.contains("remoteId = uiState.remoteBackgroundId.takeIf(String::isNotBlank)"))
-        assertTrue(source.contains("remoteSha256 = uiState.remoteBackgroundSha256.takeIf(String::isNotBlank)"))
-        assertTrue(source.contains("remoteDisplayName = uiState.remoteBackgroundDisplayName.takeIf(String::isNotBlank)"))
+    fun partnerPageUsesItsOwnSeedColorScheme() {
+        assertTrue(source.contains("seedColorScheme(seed, darkTheme)"))
+        assertTrue(source.contains("themeSeedHex = partnerThemeSeed"))
+        assertTrue(source.contains("setPartnerThemeSeed(hex)"))
     }
 
     @Test

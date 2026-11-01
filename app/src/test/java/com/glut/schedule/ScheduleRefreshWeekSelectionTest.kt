@@ -25,7 +25,7 @@ class ScheduleRefreshWeekSelectionTest {
             selectedWeekAfterCalendarRefresh(
                 selectedWeek = 12,
                 semesterStartMonday = LocalDate.of(2026, 9, 7),
-                semesterEndDate = LocalDate.of(2026, 10, 4)
+                semesterEndDate = LocalDate.of(2026, 10, 3)
             )
         )
     }

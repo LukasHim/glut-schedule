@@ -21,9 +21,6 @@ import com.glut.schedule.service.finance.FinanceParser
 import com.glut.schedule.service.finance.FinanceStore
 import com.glut.schedule.service.campus.CampusImageFileCache
 import com.glut.schedule.service.campus.CampusImageService
-import com.glut.schedule.service.background.RemoteBackgroundAssetStore
-import com.glut.schedule.service.background.RemoteBackgroundRepository
-import com.glut.schedule.service.background.AndroidRemoteArtworkSaver
 import com.glut.schedule.service.parser.AcademicScheduleParser
 import com.glut.schedule.service.parser.GlutAcademicScheduleParser
 import com.glut.schedule.service.parser.GlutExamParser
@@ -39,7 +36,6 @@ import com.glut.schedule.service.reminder.ClassReminderNotifier
 import com.glut.schedule.service.reminder.ClassReminderScheduler
 import com.glut.schedule.partner.PartnerScheduleApiService
 import com.glut.schedule.partner.PartnerScheduleStore
-import com.glut.schedule.ui.components.ScheduleBackgroundStore
 import com.glut.schedule.widget.ScheduleWidgetUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -173,14 +169,6 @@ class AppContainer(application: Application, applicationScope: CoroutineScope) {
         classPeriodProfileOverrides = settingsStore.classPeriodProfileOverrides,
         guilinSubCampus = settingsStore.guilinSubCampus
     )
-    val backgroundStore = ScheduleBackgroundStore(application)
-    val remoteBackgroundRepository = RemoteBackgroundRepository(
-        catalogCacheFile = application.filesDir.resolve("remote_backgrounds/catalog.json"),
-        previewCacheDirectory = application.cacheDir.resolve("remote_background_previews"),
-        assetStore = RemoteBackgroundAssetStore(application.filesDir.resolve("remote_backgrounds/assets")),
-        downloadCacheDirectory = application.cacheDir.resolve("remote_background_downloads")
-    )
-    val remoteArtworkSaver = AndroidRemoteArtworkSaver(application)
     val academicSessionStore = AcademicSessionStore(application)
     // 统一导入路径后只解析大节课表，个人课表页退化为「取学号」的一跳，
     // 因此不再需要按校区路由的 CompositeScheduleParser / NanningCurrcourseParser。

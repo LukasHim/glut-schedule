@@ -98,7 +98,7 @@ object ScheduleWidgetSnapshotBuilder {
                 courses = courses,
                 rules = manualDayCopies,
                 weekNumber = week,
-                weekMonday = scheduleWeekForNumber(week, semesterStartMonday).monday
+                weekSunday = scheduleWeekForNumber(week, semesterStartMonday).sunday
             )
             return blocks
                 .filter { it.occurrence.dayOfWeek == day }

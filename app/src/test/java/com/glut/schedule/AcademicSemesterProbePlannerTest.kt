@@ -111,7 +111,8 @@ class AcademicSemesterProbePlannerTest {
         )
 
         assertEquals(LocalDate.of(2025, 9, 1), calendar.startMonday)
-        assertEquals(LocalDate.of(2026, 1, 18), calendar.endDate)
+        // 估算从起始周日 2025-08-31 起数 19 周，最后一天是第 20 周的周六。
+        assertEquals(LocalDate.of(2026, 1, 17), calendar.endDate)
         assertEquals(1, calendar.currentWeekNumber)
     }
 

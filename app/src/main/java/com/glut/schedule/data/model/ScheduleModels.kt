@@ -14,12 +14,18 @@ const val MAX_ACADEMIC_WEEK = 22
 private val weekSpanPattern = Regex("""\d{1,2}(?:[-－—]\d{1,2})?""")
 val DEFAULT_SEMESTER_START_MONDAY: LocalDate = LocalDate.of(2026, 3, 9)
 
-/** Estimate semester end date when教务 system doesn't provide it.
+/**
+ * Estimate semester end date when教务 system doesn't provide it.
  *  Spring semesters (Feb–Jul start) typically run ~19 weeks.
- *  Fall semesters (Aug–Jan start) typically run ~20 weeks. */
-fun defaultSemesterEndDate(startMonday: LocalDate): LocalDate {
-    val weeks = if (startMonday.monthValue in 2..7) 18 else 19
-    return startMonday.plusWeeks(weeks.toLong()).plusDays(6)
+ *  Fall semesters (Aug–Jan start) typically run ~20 weeks.
+ *
+ *  一周从周日开始，因此估算要从**起始周日**往后数：起始周日 + N 周 + 6 天正好落在
+ *  第 N+1 周的周六（该周最后一天）。传进来的是周一时，先归一到上一个周日再数，
+ *  这样估出来的仍然是「第 19/20 周的最后一天」，而不是下一周的第一天。
+ */
+fun defaultSemesterEndDate(semesterStartDate: LocalDate): LocalDate {
+    val weeks = if (semesterStartDate.monthValue in 2..7) 18 else 19
+    return normalizeSemesterWeekStart(semesterStartDate).plusWeeks(weeks.toLong()).plusDays(6)
 }
 
 /** Backward-compatible shortcut for the hardcoded default start date. */
@@ -34,53 +40,65 @@ fun clampAcademicWeek(week: Int, maxWeek: Int): Int {
 
 fun visibleDayCount(showWeekend: Boolean): Int = if (showWeekend) 7 else 5
 
-fun normalizeSemesterStartMonday(date: LocalDate): LocalDate {
-    return date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+/** 一周从周日开始：周日 = 第一周的第一天，星期序号沿用教务口径（1=周一 … 7=周日）。 */
+fun normalizeSemesterWeekStart(date: LocalDate): LocalDate {
+    return date.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
 }
+
+/** 一周里实际显示的星期顺序（教务口径：1=周一 … 7=周日）。
+ *  一周从周日开始：显示周末时周日排在最左；只看工作日时退回周一~周五。 */
+fun visibleDayOfWeeks(dayCount: Int): List<Int> =
+    if (dayCount >= 7) listOf(7, 1, 2, 3, 4, 5, 6) else (1..dayCount).toList()
 
 fun academicWeekForDate(
     date: LocalDate,
-    semesterStartMonday: LocalDate,
+    semesterStartDate: LocalDate,
     maxWeek: Int = MAX_ACADEMIC_WEEK
 ): Int {
-    val normalizedStart = normalizeSemesterStartMonday(semesterStartMonday)
+    val normalizedStart = normalizeSemesterWeekStart(semesterStartDate)
     val daysFromStart = ChronoUnit.DAYS.between(normalizedStart, date)
     val rawWeek = Math.floorDiv(daysFromStart, 7L).toInt() + 1
     return clampAcademicWeek(rawWeek, maxWeek)
 }
 
-fun academicMaxWeekForCalendar(semesterStartMonday: LocalDate, semesterEndDate: LocalDate): Int {
-    return academicWeekForDate(semesterEndDate, semesterStartMonday)
+fun academicMaxWeekForCalendar(semesterStartDate: LocalDate, semesterEndDate: LocalDate): Int {
+    return academicWeekForDate(semesterEndDate, semesterStartDate)
 }
 
 fun scheduleWeekForNumber(
     weekNumber: Int,
-    semesterStartMonday: LocalDate,
+    semesterStartDate: LocalDate,
     maxWeek: Int = MAX_ACADEMIC_WEEK
 ): ScheduleWeek {
     val clampedWeekNumber = clampAcademicWeek(weekNumber, maxWeek)
-    val normalizedStart = normalizeSemesterStartMonday(semesterStartMonday)
+    val normalizedStart = normalizeSemesterWeekStart(semesterStartDate)
     return ScheduleWeek(
         number = clampedWeekNumber,
-        monday = normalizedStart.plusDays(((clampedWeekNumber - 1) * 7).toLong())
+        sunday = normalizedStart.plusDays(((clampedWeekNumber - 1) * 7).toLong())
     )
 }
 
 data class ScheduleWeek(
     val number: Int,
-    val monday: LocalDate
+    /** 本周的第一天。 */
+    val sunday: LocalDate
 ) {
     fun previous(maxWeek: Int = MAX_ACADEMIC_WEEK): ScheduleWeek {
         val clampedNumber = clampAcademicWeek(number - 1, maxWeek)
-        return copy(number = clampedNumber, monday = monday.minusDays(((number - clampedNumber) * 7).toLong()))
+        return copy(number = clampedNumber, sunday = sunday.minusDays(((number - clampedNumber) * 7).toLong()))
     }
 
     fun next(maxWeek: Int = MAX_ACADEMIC_WEEK): ScheduleWeek {
         val clampedNumber = clampAcademicWeek(number + 1, maxWeek)
-        return copy(number = clampedNumber, monday = monday.plusDays(((clampedNumber - number) * 7).toLong()))
+        return copy(number = clampedNumber, sunday = sunday.plusDays(((clampedNumber - number) * 7).toLong()))
     }
 
-    fun dateFor(dayOfWeek: Int): LocalDate = monday.plusDays((dayOfWeek - 1).toLong())
+    /** 教务口径的星期序号：1=周一 … 7=周日；周日落在本周的最后一天（周日 + 6）。 */
+    fun dateFor(dayOfWeek: Int): LocalDate = sunday.plusDays((dayOfWeek % 7).toLong())
+
+    /** 本周是否包含给定日期；用于判断「正在看本周」时要不要高亮当前节次。 */
+    fun contains(date: LocalDate): Boolean =
+        !date.isBefore(sunday) && date.isBefore(sunday.plusDays(7))
 }
 
 data class ClassPeriod(
@@ -295,11 +313,11 @@ fun academicMaxWeekForSemester(
     isCurrentSemester: Boolean,
     portalMaxWeek: Int?,
     courses: List<ScheduleCourse>,
-    semesterStartMonday: LocalDate,
+    semesterStartDate: LocalDate,
     semesterEndDate: LocalDate
 ): Int {
     return if (isCurrentSemester) {
-        academicMaxWeekForCalendar(semesterStartMonday, semesterEndDate)
+        academicMaxWeekForCalendar(semesterStartDate, semesterEndDate)
     } else {
         historicalAcademicMaxWeek(portalMaxWeek, courses)
     }
@@ -368,6 +386,20 @@ fun validateClassPeriods(campus: CampusType, periods: List<ClassPeriod>): Boolea
 /** 作息是否含有可用的具体钟点；为空时一切依赖时间的展示与统计都必须停用。 */
 fun hasConfiguredClassTimes(periods: List<ClassPeriod>): Boolean =
     periods.isNotEmpty() && periods.all { it.startsAt.isNotBlank() && it.endsAt.isNotBlank() }
+
+/**
+ * 当前时刻落在第几节；不在任何节次内时返回 null。
+ *
+ * 区间取左闭右开 `[startsAt, endsAt)`，因此正好踩在下课铃上的那一刻算下一节而不是上一节。
+ * 时间缺失或无法解析的节次直接跳过——研究生作息允许整份不填钟点，此时恒为 null，
+ * 调用方据此不画高亮，而不是把「没配置时间」当成「永远在上课」。
+ */
+fun activeClassPeriodSection(periods: List<ClassPeriod>, now: LocalTime): Int? =
+    periods.firstOrNull { period ->
+        val start = parseClassPeriodTime(period.startsAt.trim()) ?: return@firstOrNull false
+        val end = parseClassPeriodTime(period.endsAt.trim()) ?: return@firstOrNull false
+        !now.isBefore(start) && now.isBefore(end)
+    }?.section
 
 private fun parseClassPeriodTime(value: String): LocalTime? {
     if (!Regex("""(?:[01]\d|2[0-3]):[0-5]\d""").matches(value)) return null

@@ -60,7 +60,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.glut.schedule.data.model.AcademicSemester
@@ -308,8 +307,6 @@ fun DirectLoginScreen(
             captchaBitmap = uiState.captchaBitmap!!,
             captchaInput = uiState.captchaInput,
             isLoggingIn = uiState.isLoggingIn,
-            isCaptchaRecognizing = uiState.isCaptchaRecognizing,
-            captchaAutoRecognized = uiState.captchaAutoRecognized,
             onCaptchaInputChange = viewModel::updateCaptchaInput,
             onRefresh = viewModel::refreshCaptcha,
             onConfirm = viewModel::submitCaptcha,
@@ -518,8 +515,6 @@ private fun LoginCaptchaDialog(
     captchaBitmap: android.graphics.Bitmap,
     captchaInput: String,
     isLoggingIn: Boolean,
-    isCaptchaRecognizing: Boolean,
-    captchaAutoRecognized: Boolean,
     onCaptchaInputChange: (String) -> Unit,
     onRefresh: () -> Unit,
     onConfirm: () -> Unit,
@@ -556,33 +551,6 @@ private fun LoginCaptchaDialog(
                     }
                     Text("点击图片刷新", color = LoginSecondary, fontSize = 11.sp)
                 }
-                when {
-                    isCaptchaRecognizing -> {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center,
-                            modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(12.dp),
-                                color = LoginAccent,
-                                strokeWidth = 1.5.dp
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("正在自动识别验证码…", color = LoginSecondary, fontSize = 11.sp)
-                        }
-                    }
-                    captchaAutoRecognized && captchaInput.isNotBlank() -> {
-                        Text(
-                            "已自动识别，请核对后登录",
-                            color = MaterialTheme.colorScheme.tertiary,
-                            fontSize = 11.sp,
-                            modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-
                 Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedTextField(

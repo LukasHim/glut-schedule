@@ -153,7 +153,7 @@ class SemesterOverviewViewModel(
             isCurrentSemester = !isArchiveMode,
             portalMaxWeek = base.viewedSemester?.portalMaxWeek,
             courses = base.courses,
-            semesterStartMonday = startDate,
+            semesterStartDate = startDate,
             semesterEndDate = endDate
         )
         val currentWeek = if (isArchiveMode) 0 else academicWeekForDate(today, startDate, maxWeek)

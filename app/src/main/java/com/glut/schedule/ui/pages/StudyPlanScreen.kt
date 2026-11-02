@@ -22,9 +22,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.outlined.Autorenew
+import androidx.compose.material.icons.outlined.Cancel
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.PublishedWithChanges
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -37,15 +43,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.glut.schedule.R
 import com.glut.schedule.data.model.CourseStatus
 import com.glut.schedule.data.model.StudyPlanGroup
 import com.glut.schedule.data.model.StudyPlanGroupWithCourses
@@ -225,12 +229,12 @@ private fun LegendBar(
                 Text("图标说明：", color = SPPrimary, fontSize = fontSize,
                     fontWeight = FontWeight.Medium)
                 Spacer(modifier = Modifier.height(2.dp))
-                LegendIconRow(R.drawable.study_course_pass, "最高成绩已及格", fontSize)
-                LegendIconRow(R.drawable.study_course_failed, "最高成绩未及格", fontSize)
-                LegendIconRow(R.drawable.study_course_failed_reelect, "不及格再次选课", fontSize)
-                LegendIconRow(R.drawable.study_course_pass_reelect, "已及格再次选课", fontSize)
-                LegendIconRow(R.drawable.study_course_unelected, "未选课", fontSize)
-                LegendIconRow(R.drawable.study_course_unknown_pass, "已选课成绩未知", fontSize)
+                LegendIconRow(CourseStatus.PASSED, "最高成绩已及格", fontSize)
+                LegendIconRow(CourseStatus.FAILED, "最高成绩未及格", fontSize)
+                LegendIconRow(CourseStatus.FAILED_REELECT, "不及格再次选课", fontSize)
+                LegendIconRow(CourseStatus.PASSED_REELECT, "已及格再次选课", fontSize)
+                LegendIconRow(CourseStatus.UNELECTED, "未选课", fontSize)
+                LegendIconRow(CourseStatus.UNKNOWN, "已选课成绩未知", fontSize)
 
                 Spacer(modifier = Modifier.height(6.dp))
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
@@ -250,17 +254,18 @@ private fun LegendBar(
 
 @Composable
 private fun LegendIconRow(
-    iconRes: Int, label: String,
+    status: CourseStatus, label: String,
     fontSize: androidx.compose.ui.unit.TextUnit
 ) {
+    val visual = courseStatusVisual(status)
     Row(
         modifier = Modifier.padding(vertical = 1.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            painter = painterResource(iconRes),
+            imageVector = visual.icon,
             contentDescription = null,
-            tint = Color.Unspecified,
+            tint = visual.tint,
             modifier = Modifier.size(16.dp)
         )
         Spacer(modifier = Modifier.width(6.dp))
@@ -321,13 +326,13 @@ private fun GroupRow(
                 Text("${group.countPassed}", color = SPPrimary, fontSize = fontSize,
                     textAlign = TextAlign.Center, modifier = Modifier.weight(1.25f))
                 Box(modifier = Modifier.weight(1.25f), contentAlignment = Alignment.Center) {
+                    val visual = courseStatusVisual(
+                        if (group.isPassed) CourseStatus.PASSED else CourseStatus.FAILED
+                    )
                     Icon(
-                        painter = painterResource(
-                            if (group.isPassed) R.drawable.study_course_pass
-                            else R.drawable.study_course_failed
-                        ),
+                        imageVector = visual.icon,
                         contentDescription = if (group.isPassed) "通过" else "未通过",
-                        tint = Color.Unspecified,
+                        tint = visual.tint,
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -360,10 +365,11 @@ private fun CourseRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (!readOnly) {
+            val visual = courseStatusVisual(course.status)
             Icon(
-                painter = painterResource(statusIconRes(course.status)),
+                imageVector = visual.icon,
                 contentDescription = null,
-                tint = Color.Unspecified,
+                tint = visual.tint,
                 modifier = Modifier.size(16.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
@@ -397,13 +403,22 @@ private fun CourseRow(
     }
 }
 
-private fun statusIconRes(status: CourseStatus): Int = when (status) {
-    CourseStatus.PASSED -> R.drawable.study_course_pass
-    CourseStatus.FAILED -> R.drawable.study_course_failed
-    CourseStatus.FAILED_REELECT -> R.drawable.study_course_failed_reelect
-    CourseStatus.PASSED_REELECT -> R.drawable.study_course_pass_reelect
-    CourseStatus.UNELECTED -> R.drawable.study_course_unelected
-    CourseStatus.UNKNOWN -> R.drawable.study_course_unknown_pass
+private data class CourseStatusVisual(val icon: ImageVector, val tint: Color)
+
+@Composable
+private fun courseStatusVisual(status: CourseStatus): CourseStatusVisual = when (status) {
+    CourseStatus.PASSED ->
+        CourseStatusVisual(Icons.Outlined.CheckCircle, MaterialTheme.colorScheme.tertiary)
+    CourseStatus.FAILED ->
+        CourseStatusVisual(Icons.Outlined.Cancel, MaterialTheme.colorScheme.error)
+    CourseStatus.FAILED_REELECT ->
+        CourseStatusVisual(Icons.Outlined.Autorenew, MaterialTheme.colorScheme.error)
+    CourseStatus.PASSED_REELECT ->
+        CourseStatusVisual(Icons.Outlined.PublishedWithChanges, MaterialTheme.colorScheme.tertiary)
+    CourseStatus.UNELECTED ->
+        CourseStatusVisual(Icons.Outlined.RadioButtonUnchecked, MaterialTheme.colorScheme.outline)
+    CourseStatus.UNKNOWN ->
+        CourseStatusVisual(Icons.AutoMirrored.Outlined.HelpOutline, MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 private fun formatNum(value: Double): String {

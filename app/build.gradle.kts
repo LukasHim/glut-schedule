@@ -17,8 +17,8 @@ android {
         applicationId = "com.glut.schedule.md"
         minSdk = 26
         targetSdk = 36
-        versionCode = 127
-        versionName = "0.26.1"
+        versionCode = 128
+        versionName = "0.26.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
     }

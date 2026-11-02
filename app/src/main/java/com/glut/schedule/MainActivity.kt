@@ -1055,7 +1055,7 @@ private fun DrawerHeader() {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Image(
-            painter = painterResource(R.drawable.brand_menu_logo),
+            painter = painterResource(R.drawable.brand_launcher_foreground),
             contentDescription = "桂系一站式标志",
             modifier = Modifier.size(40.dp)
         )

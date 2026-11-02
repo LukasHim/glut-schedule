@@ -71,4 +71,17 @@ class ScheduleWeekStartAndCurrentPeriodContractTest {
         assertTrue(partner.contains("visibleDayOfWeeks(dayCount)"))
         assertTrue(partner.contains("dayOrder.indexOf(group.dayOfWeek)"))
     }
+
+    @Test
+    fun cardsUseTheSameColumnOrderAsTheHeader() {
+        // 表头、卡片、网格线必须共用 visibleDayOfWeeks 的结果：各算一份下标时，
+        // 关掉「显示周末」会把周一整列推到第 2 格。
+        assertTrue(grid.contains("val dayOrder = visibleDayOfWeeks(dayCount)"))
+        assertTrue(grid.contains("block.occurrence.dayOfWeek in dayOrder"))
+        // 允许换行：这条断言只关心「卡片下标由 dayOrder 决定」。
+        val cardColumn = Regex(
+            """scheduleColumnIndexOf\(\s*activeBlock\.occurrence\.dayOfWeek,\s*dayOrder\s*\)"""
+        )
+        assertTrue(grid.contains(cardColumn))
+    }
 }

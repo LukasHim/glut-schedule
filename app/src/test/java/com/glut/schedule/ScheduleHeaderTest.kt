@@ -6,6 +6,8 @@ import com.glut.schedule.ui.components.scheduleGridMonthHeaderStartPaddingDp
 import com.glut.schedule.ui.components.scheduleGridMonthHeaderTopPaddingDp
 import com.glut.schedule.ui.components.scheduleGridMonthText
 import com.glut.schedule.ui.components.scheduleCalendarDays
+import com.glut.schedule.ui.components.scheduleColumnIndexOf
+import com.glut.schedule.data.model.visibleDayOfWeeks
 import com.glut.schedule.ui.components.semesterMenuStatusText
 import com.glut.schedule.data.model.AcademicSemester
 import com.glut.schedule.data.model.ScheduleWeek
@@ -88,6 +90,23 @@ class ScheduleHeaderTest {
         assertEquals(false, otherWeek.any { it.isToday })
         // 显示周末时周日排在最左，后面才是周一~周六。
         assertEquals(listOf("日", "一", "二", "三", "四", "五", "六"), otherWeek.map { it.name })
+    }
+
+    @Test
+    fun gridColumnIndexFollowsTheVisibleDayOrder() {
+        val withWeekend = visibleDayOfWeeks(7)
+        val weekdaysOnly = visibleDayOfWeeks(5)
+
+        // 显示周末：周日第 1 列，周一第 2 列。
+        assertEquals(0, scheduleColumnIndexOf(7, withWeekend))
+        assertEquals(1, scheduleColumnIndexOf(1, withWeekend))
+
+        // 隐藏周末：周一必须回到第 1 列——曾经的「周日特判 + 其余原样」会把它推到第 2 列。
+        assertEquals(0, scheduleColumnIndexOf(1, weekdaysOnly))
+        assertEquals(4, scheduleColumnIndexOf(5, weekdaysOnly))
+        // 周六/周日不在显示范围内，调用方据此把它们过滤掉。
+        assertEquals(-1, scheduleColumnIndexOf(6, weekdaysOnly))
+        assertEquals(-1, scheduleColumnIndexOf(7, weekdaysOnly))
     }
 
     private fun semester(

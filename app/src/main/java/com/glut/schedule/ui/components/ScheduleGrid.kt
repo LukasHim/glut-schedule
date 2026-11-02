@@ -65,11 +65,14 @@ import java.time.LocalTime
 private val dayNames = listOf("日", "一", "二", "三", "四", "五", "六")
 
 /**
- * 教务星期序号（1=周一 … 7=周日）在课表列里的下标。
+ * 教务星期序号（1=周一 … 7=周日）在课表列里的下标；不在显示范围内返回 -1。
  *
- * 一周从周日开始，因此周日排在最左、周一~周六顺次跟在后面。
+ * 列顺序**只能**从 [visibleDayOfWeeks] 推导：显示周末时是「日、一…六」，隐藏周末时是
+ * 「一…五」。曾经这里写成「周日特判 0、其余原样」，隐藏周末时周一就会落到第 2 列，
+ * 整列课程与表头错开一格。表头、卡片定位、网格线必须共用同一份顺序。
  */
-internal fun scheduleColumnIndexOf(dayOfWeek: Int): Int = if (dayOfWeek == 7) 0 else dayOfWeek
+internal fun scheduleColumnIndexOf(dayOfWeek: Int, dayOrder: List<Int>): Int =
+    dayOrder.indexOf(dayOfWeek)
 
 /**
  * 固定节次高度内必须显式约束文字行高，并移除部分系统字体自带的超大上下留白。
@@ -194,6 +197,9 @@ fun ScheduleGrid(
         val rowHeight = 74.dp
         val leftWidth = 52.dp
         val dayCount = visibleDayCount(showWeekend)
+        // 表头、卡片定位、网格线共用这一份列顺序：隐藏周末时是「一…五」，
+        // 显示周末时周日排在最左。任何一处自己算下标都会在隐藏周末时错位。
+        val dayOrder = visibleDayOfWeeks(dayCount)
         val dayWidth = (maxWidth - leftWidth) / dayCount
         // 没有中午节次的来源（南宁、研究生）必须原样显示全部节次，不折叠也不偏移；
         // 桂林（14节）才按用户的「显示中午」开关决定是否折叠中间两行。
@@ -203,9 +209,9 @@ fun ScheduleGrid(
         val visibleRows = remember(periods, effectiveShowNoon) {
             visiblePeriodRows(periods, effectiveShowNoon)
         }
-        val visibleBlocks = remember(blocks, dayCount, effectiveShowNoon) {
+        val visibleBlocks = remember(blocks, dayOrder, effectiveShowNoon) {
             blocks.filter { block ->
-                block.occurrence.dayOfWeek <= dayCount &&
+                block.occurrence.dayOfWeek in dayOrder &&
                     (effectiveShowNoon || block.occurrence.startSection !in NOON_SECTIONS)
             }
         }
@@ -244,6 +250,7 @@ fun ScheduleGrid(
                     rowHeight = rowHeight,
                     dayWidth = dayWidth,
                     dayCount = dayCount,
+                    dayOrder = dayOrder,
                     showGridLines = showGridLines,
                     blockEndSections = blockEndSections,
                     onCourseLongClick = onCourseLongClick,
@@ -544,6 +551,8 @@ private fun TimetableBody(
     rowHeight: Dp,
     dayWidth: Dp,
     dayCount: Int,
+    /** 与表头完全一致的列顺序（教务星期序号）。卡片横向位置只能按它算。 */
+    dayOrder: List<Int> = visibleDayOfWeeks(dayCount),
     showGridLines: Boolean = false,
     blockEndSections: List<Int> = emptyList(),
     onCourseLongClick: ((CourseBlock) -> Unit)? = null,
@@ -629,7 +638,10 @@ private fun TimetableBody(
                     ),
                     modifier = Modifier
                         .offset(
-                            x = dayWidth * scheduleColumnIndexOf(activeBlock.occurrence.dayOfWeek) + 2.dp,
+                            x = dayWidth * scheduleColumnIndexOf(
+                                activeBlock.occurrence.dayOfWeek,
+                                dayOrder
+                            ).coerceAtLeast(0) + 2.dp,
                             // 行号直接从可见行列表查，不再自己按节次号推算偏移：
                             // 「隐藏中午时减 3」与 visibleRows 是同一规则的两种写法，分开写迟早漂移。
                             y = rowHeight * (

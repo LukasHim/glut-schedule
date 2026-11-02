@@ -520,20 +520,8 @@ private fun FinanceLoginDialog(
                         }
                     }
                 }
-                when {
-                    login.isCaptchaRecognizing -> Text(
-                        "正在自动识别验证码…",
-                        color = FinanceMuted,
-                        fontSize = 11.sp
-                    )
-                    login.captchaAutoRecognized && login.captcha.isNotBlank() -> Text(
-                        "已自动识别，请核对后登录",
-                        color = MaterialTheme.colorScheme.tertiary,
-                        fontSize = 11.sp
-                    )
-                }
                 if (login.error.isNotBlank()) Text(login.error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-                Text("点击验证码图片可刷新；验证码会自动识别并填入，可手动修改。", color = FinanceMuted, fontSize = 11.sp)
+                Text("点击验证码图片可刷新。", color = FinanceMuted, fontSize = 11.sp)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = onDismiss) { Text("取消", color = FinanceMuted) }
                     TextButton(onClick = onLogin, enabled = !state.isRefreshing) {

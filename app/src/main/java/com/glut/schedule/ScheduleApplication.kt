@@ -31,7 +31,6 @@ import com.glut.schedule.service.parser.StudyPlanParser
 import com.glut.schedule.service.AppUpdater
 import com.glut.schedule.service.UpdateChecker
 import com.glut.schedule.service.holiday.TimorHolidayClient
-import com.glut.schedule.service.ocr.PaddleCaptchaOcr
 import com.glut.schedule.service.reminder.ClassReminderNotifier
 import com.glut.schedule.service.reminder.ClassReminderScheduler
 import com.glut.schedule.partner.PartnerScheduleApiService
@@ -258,8 +257,6 @@ class AppContainer(application: Application, applicationScope: CoroutineScope) {
     val fitnessStore = FitnessStore(application)
     val fitnessApiService = FitnessApiService()
     val fitnessParser = FitnessParser()
-    /** 验证码图片只在本机推理，不经过任何第三方 OCR 接口。 */
-    val captchaOcr = PaddleCaptchaOcr(application)
     val financeStore by lazy { FinanceStore(application) }
     private val financeParser by lazy { FinanceParser() }
     val financeApiService by lazy { FinanceApiService(financeParser) }

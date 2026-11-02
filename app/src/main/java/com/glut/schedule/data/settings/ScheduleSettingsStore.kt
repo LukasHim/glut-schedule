@@ -127,6 +127,8 @@ class ScheduleSettingsStore(
     private val themeModeKey = stringPreferencesKey("theme_mode")
     /** 动态取色开关；默认关闭，保证默认观感是黄色主题。 */
     private val dynamicColorEnabledKey = booleanPreferencesKey("dynamic_color_enabled")
+    /** 应用主题自定义种子色；留空表示使用默认黄色配色。 */
+    private val themeSeedKey = stringPreferencesKey("theme_seed")
     /** 上课提醒开关与提前分钟数。 */
     private val classReminderEnabledKey = booleanPreferencesKey("class_reminder_enabled")
     private val classReminderMinutesKey = intPreferencesKey("class_reminder_minutes")
@@ -247,6 +249,11 @@ class ScheduleSettingsStore(
         preferences[dynamicColorEnabledKey] ?: false
     }.distinctUntilChanged()
 
+    /** 应用主题种子色；空串表示使用默认黄色配色。 */
+    val themeSeed: Flow<String> = context.scheduleSettings.data.map { preferences ->
+        preferences[themeSeedKey].orEmpty()
+    }.distinctUntilChanged()
+
     val classReminderEnabled: Flow<Boolean> = context.scheduleSettings.data.map { preferences ->
         preferences[classReminderEnabledKey] ?: false
     }.distinctUntilChanged()
@@ -265,6 +272,15 @@ class ScheduleSettingsStore(
     suspend fun setDynamicColorEnabled(enabled: Boolean) {
         context.scheduleSettings.edit { preferences ->
             preferences[dynamicColorEnabledKey] = enabled
+        }
+    }
+
+    /** 应用主题色：写 `#RRGGBB`；空串表示恢复默认黄色主题。 */
+    suspend fun setThemeSeed(hex: String) {
+        context.scheduleSettings.edit { preferences ->
+            val normalized = hex.trim()
+            if (normalized.isBlank()) preferences.remove(themeSeedKey)
+            else preferences[themeSeedKey] = normalized
         }
     }
 

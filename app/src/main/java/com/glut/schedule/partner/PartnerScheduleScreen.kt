@@ -62,7 +62,6 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -112,6 +111,7 @@ import com.glut.schedule.ui.components.courseCardTitleLineHeight
 import com.glut.schedule.ui.components.courseCardTitleMaxLines
 import com.glut.schedule.ui.components.courseCardTitleTextSize
 import com.glut.schedule.ui.theme.DEFAULT_PARTNER_THEME_SEED_HEX
+import com.glut.schedule.ui.theme.SeedColorPickerDialog
 import com.glut.schedule.ui.theme.parseSeedColor
 import com.glut.schedule.ui.theme.toSeedHex
 import java.time.Duration
@@ -1025,7 +1025,7 @@ private fun PartnerThemeColorRow(
         TextButton(onClick = { showPicker = true }) { Text("自定义") }
     }
     if (showPicker) {
-        PartnerThemeColorDialog(
+        SeedColorPickerDialog(
             initial = current,
             onDismiss = { showPicker = false },
             onConfirm = { color ->
@@ -1034,66 +1034,6 @@ private fun PartnerThemeColorRow(
             }
         )
     }
-}
-
-@Composable
-private fun PartnerThemeColorDialog(
-    initial: Color,
-    onDismiss: () -> Unit,
-    onConfirm: (Color) -> Unit
-) {
-    val initialHsv = remember(initial) { colorToHsv(initial) }
-    var hue by remember { mutableStateOf(initialHsv.first) }
-    var saturation by remember { mutableStateOf(initialHsv.second) }
-    var value by remember { mutableStateOf(initialHsv.third) }
-    val preview = hsvToColor(hue, saturation, value)
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("选择主题色") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(preview),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        preview.toSeedHex(),
-                        color = if (value > 0.5f) Color.Black else Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Text("色相", fontSize = 12.sp)
-                Slider(
-                    value = hue,
-                    onValueChange = { hue = it },
-                    valueRange = 0f..360f
-                )
-                Text("饱和度", fontSize = 12.sp)
-                Slider(
-                    value = saturation,
-                    onValueChange = { saturation = it },
-                    valueRange = 0f..1f
-                )
-                Text("亮度", fontSize = 12.sp)
-                Slider(
-                    value = value,
-                    onValueChange = { value = it.coerceAtLeast(0.05f) },
-                    valueRange = 0f..1f
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(preview) }) { Text("使用此颜色") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        }
-    )
 }
 
 @Composable

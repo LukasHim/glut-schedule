@@ -739,28 +739,6 @@ private fun FitnessLoginDialog(
                     }
                 }
                 Text("点击验证码图片可刷新", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                when {
-                    state.isCaptchaRecognizing -> {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(12.dp),
-                                color = MaterialTheme.colorScheme.primary,
-                                strokeWidth = 1.5.dp
-                            )
-                            Text("正在自动识别验证码…", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                        }
-                    }
-                    state.captchaAutoRecognized && state.captcha.isNotBlank() -> {
-                        Text(
-                            "已自动识别，请核对后登录",
-                            color = MaterialTheme.colorScheme.tertiary,
-                            fontSize = 12.sp
-                        )
-                    }
-                }
                 if (state.loginError.isNotBlank()) {
                     Text(state.loginError, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
                 }

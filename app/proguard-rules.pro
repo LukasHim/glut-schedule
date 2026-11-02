@@ -19,11 +19,6 @@
 # ── JSON (org.json) ──
 -keep class org.json.** { *; }
 
-# ── ONNX Runtime / PaddleOCR 验证码识别 ──
-# JNI 通过类名查找 Java 侧的类型，混淆后 native 层会找不到入口。
--keep class ai.onnxruntime.** { *; }
--dontwarn ai.onnxruntime.**
-
 # ── 序列化相关保留 ──
 -keepclassmembers class * {
     @com.google.gson.annotations.SerializedName <fields>;

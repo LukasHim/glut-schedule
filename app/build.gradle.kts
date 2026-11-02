@@ -127,9 +127,6 @@ dependencies {
     // 加密安全性——加密算法本身（AES-256 GCM/SIV）与稳定版一致。
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("org.jsoup:jsoup:1.21.2")
-    // 验证码识别使用 PaddleOCR 的 PP-OCRv5 识别模型（ONNX 格式）。
-    // mobile 包只保留标准算子，体积约为 android 完整包的 1/4，足够跑 CNN + CTC 识别模型。
-    implementation("com.microsoft.onnxruntime:onnxruntime-mobile:1.18.0")
 
     ksp("androidx.room:room-compiler:2.8.4")
 

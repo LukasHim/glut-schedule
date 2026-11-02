@@ -1,7 +1,5 @@
 package com.glut.schedule.ui.pages
 
-import android.graphics.BitmapFactory
-import android.util.Base64
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -16,7 +14,6 @@ import com.glut.schedule.service.finance.FinanceFailure
 import com.glut.schedule.service.finance.FinanceGateway
 import com.glut.schedule.service.finance.FinanceResponse
 import com.glut.schedule.service.finance.FinanceStorage
-import com.glut.schedule.service.ocr.CaptchaOcr
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -35,11 +32,7 @@ data class FinanceLoginState(
     val captchaImage: String = "",
     val cookie: String = "",
     val error: String = "",
-    val passwordVisible: Boolean = false,
-    /** OCR 正在识别当前这张验证码；此时输入框仍可手动输入。 */
-    val isCaptchaRecognizing: Boolean = false,
-    /** 当前输入框的内容来自自动识别，用于在弹窗里提示用户核对。 */
-    val captchaAutoRecognized: Boolean = false
+    val passwordVisible: Boolean = false
 )
 
 data class FinanceUiState(
@@ -67,9 +60,7 @@ data class FinanceUiState(
 class FinanceViewModel(
     private val gateway: FinanceGateway,
     private val store: FinanceStorage,
-    campus: CampusType,
-    /** 生产环境传入 [com.glut.schedule.service.ocr.PaddleCaptchaOcr]；单元测试可省略。 */
-    private val captchaOcr: CaptchaOcr? = null
+    campus: CampusType
 ) : ViewModel() {
     private val credentials = store.credentials()
     private val cached = FinanceModule.entries.mapNotNull { module -> store.module(module)?.let { module to it } }.toMap()
@@ -147,9 +138,7 @@ class FinanceViewModel(
             login = it.login.copy(
                 visible = false,
                 error = "",
-                captcha = "",
-                isCaptchaRecognizing = false,
-                captchaAutoRecognized = false
+                captcha = ""
             ),
             isRefreshing = false
         )
@@ -157,7 +146,7 @@ class FinanceViewModel(
     fun updateUsername(value: String) = _uiState.update { it.copy(login = it.login.copy(username = value, error = "")) }
     fun updatePassword(value: String) = _uiState.update { it.copy(login = it.login.copy(password = value, error = "")) }
     fun updateCaptcha(value: String) = _uiState.update {
-        it.copy(login = it.login.copy(captcha = value, error = "", captchaAutoRecognized = false))
+        it.copy(login = it.login.copy(captcha = value, error = ""))
     }
     fun togglePasswordVisibility() = _uiState.update { it.copy(login = it.login.copy(passwordVisible = !it.login.passwordVisible)) }
     fun toggleMoneyVisibility() = _uiState.update { it.copy(moneyVisible = !it.moneyVisible) }
@@ -185,7 +174,7 @@ class FinanceViewModel(
                 if (requestGeneration != generation) return@launch
                 store.saveCredentials(FinanceCredentials(login.username, login.password))
                 store.saveSessionCookie(result.cookie)
-                _uiState.update { it.copy(isRefreshing = false, login = it.login.copy(visible = false, captcha = "", captchaImage = "", error = "", isCaptchaRecognizing = false, captchaAutoRecognized = false)) }
+                _uiState.update { it.copy(isRefreshing = false, login = it.login.copy(visible = false, captcha = "", captchaImage = "", error = "")) }
                 val resume = pendingAction
                 var resumedModule: FinanceModule? = null
                 var resumeFailures = 0
@@ -396,9 +385,7 @@ class FinanceViewModel(
                     error = if (preserveError) it.login.error else "",
                     captcha = "",
                     captchaImage = "",
-                    cookie = "",
-                    isCaptchaRecognizing = false,
-                    captchaAutoRecognized = false
+                    cookie = ""
                 )
             )
         }
@@ -407,7 +394,6 @@ class FinanceViewModel(
                 val result = gateway.captcha()
                 if (requestGeneration != generation || requestId != captchaRequestId) return@launch
                 _uiState.update { it.copy(login = it.login.copy(captchaImage = result.imageDataUrl, cookie = result.cookie)) }
-                recognizeCaptcha(result.imageDataUrl, requestId)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -418,58 +404,6 @@ class FinanceViewModel(
             }
         }
     }
-
-    /**
-     * 用 PaddleOCR 识别刚拿到的验证码，并在用户尚未输入时自动回填。
-     *
-     * 识别在后台进行，弹窗立即显示。用户在识别完成前手动输入的内容优先级更高，
-     * 不会被后到的识别结果覆盖。只用于财务平台登录。
-     */
-    private fun recognizeCaptcha(imageDataUrl: String, requestId: Int) {
-        val ocr = captchaOcr
-        val bitmap = if (ocr == null) null else decodeDataUrlBitmap(imageDataUrl)
-        if (bitmap == null) {
-            _uiState.update {
-                it.copy(login = it.login.copy(isCaptchaRecognizing = false, captchaAutoRecognized = false))
-            }
-            return
-        }
-        _uiState.update { it.copy(login = it.login.copy(isCaptchaRecognizing = true, captchaAutoRecognized = false)) }
-        viewModelScope.launch {
-            val text = try {
-                ocr?.recognize(bitmap)
-            } catch (cancellation: CancellationException) {
-                throw cancellation
-            } catch (_: Exception) {
-                null
-            }
-            if (requestId != captchaRequestId) return@launch
-            val current = _uiState.value
-            if (!current.login.visible) return@launch
-            _uiState.update { state ->
-                val login = state.login
-                when {
-                    text.isNullOrBlank() -> state.copy(login = login.copy(isCaptchaRecognizing = false))
-                    login.captcha.isBlank() -> state.copy(
-                        login = login.copy(
-                            captcha = text,
-                            isCaptchaRecognizing = false,
-                            captchaAutoRecognized = true
-                        )
-                    )
-                    else -> state.copy(login = login.copy(isCaptchaRecognizing = false))
-                }
-            }
-        }
-    }
-
-    private fun decodeDataUrlBitmap(value: String): android.graphics.Bitmap? = runCatching {
-        val encoded = value.substringAfter("base64,", "")
-        if (encoded.isBlank()) return null
-        val bytes = Base64.decode(encoded, Base64.DEFAULT)
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-    }.getOrNull()
-
 
     private fun errorMessage(error: Exception): String = when (error) {
         is FinanceFailure -> error.message.orEmpty()
@@ -501,10 +435,9 @@ private fun FinancePayload.Items?.orEmptyItems(): List<FinanceItem> = this?.valu
 class FinanceViewModelFactory(
     private val gateway: FinanceGateway,
     private val store: FinanceStorage,
-    private val campus: CampusType,
-    private val captchaOcr: CaptchaOcr? = null
+    private val campus: CampusType
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        FinanceViewModel(gateway, store, campus, captchaOcr) as T
+        FinanceViewModel(gateway, store, campus) as T
 }

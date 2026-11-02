@@ -177,8 +177,11 @@ import com.glut.schedule.ui.pages.ScheduleViewModelFactory
 import com.glut.schedule.ui.components.AdvancedColorSheet
 import com.glut.schedule.ui.components.CourseColorPaletteSection
 import com.glut.schedule.ui.theme.DEFAULT_PARTNER_THEME_SEED_HEX
+import com.glut.schedule.ui.theme.DEFAULT_THEME_SEED_HEX
+import com.glut.schedule.ui.theme.SeedColorPickerDialog
 import com.glut.schedule.ui.theme.parseSeedColor
 import com.glut.schedule.ui.theme.seedColorScheme
+import com.glut.schedule.ui.theme.toSeedHex
 import com.glut.schedule.ui.pages.ScoreDisplayPolicy
 import com.glut.schedule.ui.pages.ScoreScreen
 import com.glut.schedule.ui.pages.ScoreViewModel
@@ -243,11 +246,14 @@ class MainActivity : ComponentActivity() {
                 .collectAsStateWithLifecycle(initialValue = ThemeMode.SYSTEM)
             val dynamicColorEnabled by container.settingsStore.dynamicColorEnabled
                 .collectAsStateWithLifecycle(initialValue = false)
+            val themeSeed by container.settingsStore.themeSeed
+                .collectAsStateWithLifecycle(initialValue = "")
             val darkTheme = resolveDarkTheme(themeMode)
             @OptIn(ExperimentalMaterial3Api::class)
             GlutScheduleTheme(
                 themeMode = themeMode,
-                dynamicColorEnabled = dynamicColorEnabled
+                dynamicColorEnabled = dynamicColorEnabled,
+                themeSeedHex = themeSeed
             ) {
                 val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
                 val scope = rememberCoroutineScope()
@@ -401,8 +407,7 @@ class MainActivity : ComponentActivity() {
                     factory = FitnessScoreViewModelFactory(
                         service = container.fitnessApiService,
                         store = container.fitnessStore,
-                        parser = container.fitnessParser,
-                        captchaOcr = container.captchaOcr
+                        parser = container.fitnessParser
                     )
                 )
                 val partnerScheduleViewModel: PartnerScheduleViewModel = viewModel(
@@ -434,8 +439,7 @@ class MainActivity : ComponentActivity() {
                         factory = FinanceViewModelFactory(
                             gateway = container.financeApiService,
                             store = container.financeStore,
-                            campus = campusType,
-                            captchaOcr = container.captchaOcr
+                            campus = campusType
                         )
                     ))
                 } else null
@@ -753,6 +757,7 @@ class MainActivity : ComponentActivity() {
                                     subPage = settingsSubPage,
                                     themeMode = themeMode,
                                     dynamicColorEnabled = dynamicColorEnabled,
+                                    themeSeedHex = themeSeed,
                                     onThemeModeChange = { mode ->
                                         scope.launch { container.settingsStore.setThemeMode(mode) }
                                     },
@@ -760,6 +765,9 @@ class MainActivity : ComponentActivity() {
                                         scope.launch {
                                             container.settingsStore.setDynamicColorEnabled(enabled)
                                         }
+                                    },
+                                    onThemeSeedChange = { hex ->
+                                        scope.launch { container.settingsStore.setThemeSeed(hex) }
                                     },
                                     reminderEnabled = reminderEnabled,
                                     reminderMinutes = reminderMinutes,
@@ -967,8 +975,10 @@ private fun ScheduleSettingsDestination(
     subPage: SettingsSubPage,
     themeMode: ThemeMode,
     dynamicColorEnabled: Boolean,
+    themeSeedHex: String,
     onThemeModeChange: (ThemeMode) -> Unit,
     onDynamicColorChange: (Boolean) -> Unit,
+    onThemeSeedChange: (String) -> Unit,
     reminderEnabled: Boolean,
     reminderMinutes: Int,
     notificationPermissionGranted: Boolean,
@@ -1016,8 +1026,10 @@ private fun ScheduleSettingsDestination(
             onShowGridLinesChange = viewModel::setShowGridLines,
             themeMode = themeMode,
             dynamicColorEnabled = dynamicColorEnabled,
+            themeSeedHex = themeSeedHex,
             onThemeModeChange = onThemeModeChange,
             onDynamicColorChange = onDynamicColorChange,
+            onThemeSeedChange = onThemeSeedChange,
             reminderEnabled = reminderEnabled,
             reminderMinutes = reminderMinutes,
             notificationPermissionGranted = notificationPermissionGranted,
@@ -1140,8 +1152,10 @@ private fun SettingsPage(
     onShowGridLinesChange: (Boolean) -> Unit = {},
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     dynamicColorEnabled: Boolean = false,
+    themeSeedHex: String = "",
     onThemeModeChange: (ThemeMode) -> Unit = {},
     onDynamicColorChange: (Boolean) -> Unit = {},
+    onThemeSeedChange: (String) -> Unit = {},
     reminderEnabled: Boolean = false,
     reminderMinutes: Int = 10,
     notificationPermissionGranted: Boolean = false,
@@ -1226,6 +1240,12 @@ private fun SettingsPage(
                         }
                     }
                 }
+                SettingsDivider()
+                ThemeSeedColorRow(
+                    themeSeedHex = themeSeedHex,
+                    enabled = !dynamicColorEnabled,
+                    onThemeSeedChange = onThemeSeedChange
+                )
                 SettingsDivider()
                 SettingsSwitchRow(
                     title = "动态颜色",
@@ -1325,6 +1345,66 @@ private fun SettingsPage(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ThemeSeedColorRow(
+    themeSeedHex: String,
+    enabled: Boolean,
+    onThemeSeedChange: (String) -> Unit
+) {
+    val current = parseSeedColor(themeSeedHex)
+        ?: parseSeedColor(DEFAULT_THEME_SEED_HEX)
+        ?: MaterialTheme.colorScheme.primary
+    var showPicker by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .background(current, CircleShape)
+                .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                "主题色",
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Text(
+                when {
+                    !enabled -> "动态颜色开启时改用系统壁纸取色"
+                    themeSeedHex.isBlank() -> "默认黄色，可自定义种子颜色"
+                    else -> "自定义 ${themeSeedHex.uppercase()}"
+                },
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+        if (themeSeedHex.isNotBlank()) {
+            TextButton(onClick = { onThemeSeedChange("") }, enabled = enabled) {
+                Text("恢复默认")
+            }
+        }
+        TextButton(onClick = { showPicker = true }, enabled = enabled) {
+            Text("自定义")
+        }
+    }
+    if (showPicker) {
+        SeedColorPickerDialog(
+            initial = current,
+            onDismiss = { showPicker = false },
+            onConfirm = { color ->
+                onThemeSeedChange(color.toSeedHex())
+                showPicker = false
+            }
+        )
     }
 }
 

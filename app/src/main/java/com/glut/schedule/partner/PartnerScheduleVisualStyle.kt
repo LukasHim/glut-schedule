@@ -104,14 +104,3 @@ internal object PartnerScheduleVisualStyle {
                 PartnerCourseCardStyle(surface = Color(0xFFF7E7B2), content = Color(0xFF5F4B00))
         }
 }
-
-/** 颜色 → HSV（H 0..360，S/V 0..1），供主题色选择器复用。 */
-internal fun colorToHsv(color: Color): Triple<Float, Float, Float> {
-    val hsv = FloatArray(3)
-    android.graphics.Color.colorToHSV(color.toArgb(), hsv)
-    return Triple(hsv[0], hsv[1], hsv[2])
-}
-
-/** HSV → 不透明颜色。 */
-internal fun hsvToColor(hue: Float, saturation: Float, value: Float): Color =
-    Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, value)))

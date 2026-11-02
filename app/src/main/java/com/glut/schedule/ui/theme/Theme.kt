@@ -8,6 +8,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import com.glut.schedule.data.settings.ThemeMode
@@ -59,6 +60,9 @@ private val YellowLightScheme = lightColorScheme(
     surfaceContainerLow = Color(0xFFFBF4E2),
     surfaceContainerLowest = Color(0xFFFFFFFF)
 )
+
+/** 应用主题色选择器的默认种子色；留空时仍使用下面精调的黄色配色。 */
+const val DEFAULT_THEME_SEED_HEX: String = "#FFC107"
 
 private val YellowDarkScheme = darkColorScheme(
     primary = Color(0xFFDBC66D),
@@ -117,13 +121,19 @@ fun resolveDarkTheme(themeMode: ThemeMode): Boolean = when (themeMode) {
 fun GlutScheduleTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     dynamicColorEnabled: Boolean = false,
+    /** 自定义主题种子色；空串表示使用默认黄色主题。动态颜色开启时优先跟随壁纸。 */
+    themeSeedHex: String = "",
     content: @Composable () -> Unit
 ) {
     val darkTheme = resolveDarkTheme(themeMode)
     val context = LocalContext.current
+    val customScheme = remember(themeSeedHex, darkTheme) {
+        parseSeedColor(themeSeedHex)?.let { seed -> seedColorScheme(seed, darkTheme) }
+    }
     val colorScheme = when {
         dynamicColorEnabled && isDynamicColorAvailable() ->
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        customScheme != null -> customScheme
         darkTheme -> YellowDarkScheme
         else -> YellowLightScheme
     }
